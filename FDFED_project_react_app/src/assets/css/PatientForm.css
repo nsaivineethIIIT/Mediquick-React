@@ -1,0 +1,238 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+
+:root {
+  --blue: #0188df;
+  --black: #444d53;
+  --white: #fff;
+}
+
+* {
+  font-family: "Roboto", sans-serif;
+  margin: 0;
+  padding: 0;
+  text-decoration: none;
+  outline: none;
+  box-sizing: border-box;
+  transition: all linear .2s;
+}
+
+html {
+  font-size: 62.5%;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.patient-form-container header {
+  width: 96%;
+  background: var(--white);
+  position: fixed;
+  top: 2rem;
+  left: 50%;
+  transform: translate(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  z-index: 1000;
+}
+
+.patient-form-container header a {
+  color: var(--black);
+}
+
+.patient-form-container header a:hover {
+  color: var(--blue);
+}
+
+.patient-form-container header .logo {
+  font-size: 3rem;
+}
+
+.patient-form-container header .logo span {
+  color: var(--blue);
+}
+
+.patient-form-container header .navbar ul {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;
+}
+
+.patient-form-container header .navbar ul li {
+  margin: 0 1rem;
+}
+
+.patient-form-container header .navbar ul li a {
+  font-size: 2rem;
+  color: var(--black);
+}
+
+.patient-form-container header .navbar ul li a:hover {
+  color: var(--blue);
+}
+
+.patient-form-container header .fa-bars {
+  font-size: 3rem;
+  color: var(--blue);
+  cursor: pointer;
+  display: none;
+}
+
+.header-active {
+  top: 0;
+  width: 100%;
+  box-shadow: .1rem .3rem rgba(0, 0, 0, .3);
+}
+
+.close-btn {
+  position: absolute;
+  top: 15%;
+  left: 5%;
+  font-size: 24px;
+  font-weight: bold;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  padding: 5px 10px;
+  transition: 0.3s;
+}
+
+.close-btn:hover {
+  background: rgba(0, 0, 0, 0.3);
+  color: white;
+}
+
+.profile-form input {
+  width: 80%;
+  padding: 10px;
+  margin: 10px 0;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  margin-top: 20px;
+  margin-left: 10%;
+  text-transform: none;
+}
+
+.patient-profile {
+  flex: 1;
+  padding: 20px;
+  background-color: white;
+  margin: 100px 20px 20px 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.button {
+  height: 3.5rem;
+  width: 15rem;
+  background: var(--black);
+  color: var(--white);
+  font-size: 1.7rem;
+  text-transform: capitalize;
+  border-radius: .5rem;
+  cursor: pointer;
+  margin: 1rem 0;
+  border: .1rem solid var(--blue);
+  margin-left: 100%;
+}
+
+.button:hover {
+  border: .1rem solid var(--blue);
+  background: var(--white);
+  color: var(--blue);
+  letter-spacing: .2rem;
+}
+
+.toggle {
+  text-align: center;
+  color: var(--blue);
+  font-size: 1.5rem;
+}
+
+.toggle:hover {
+  color: var(--black);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.message {
+  text-align: center;
+  margin: 10px 0;
+  font-size: 1.4rem;
+  padding: 10px;
+  border-radius: 5px;
+}
+
+.message.error {
+  color: red;
+  background-color: #ffe6e6;
+  border: 1px solid red;
+}
+
+.message.success {
+  color: green;
+  background-color: #e6ffe6;
+  border: 1px solid green;
+}
+
+.error-input {
+  border: 1px solid red !important;
+}
+
+.error-text {
+  color: red;
+  font-size: 1.2rem;
+  margin-left: 10%;
+  display: block;
+}
+
+@media (max-width:768px) {
+  html {
+    font-size: 55%;
+  }
+
+  .patient-form-container header .fa-bars {
+    display: block;
+  }
+
+  .patient-form-container header .navbar {
+    position: fixed;
+    top: -100rem;
+    left: 0;
+    width: 100%;
+    background: var(--white);
+    opacity: 0;
+  }
+
+  .patient-form-container header .navbar ul {
+    flex-flow: column;
+    padding: 2rem 0;
+  }
+
+  .patient-form-container header .navbar ul li {
+    margin: 1rem 0;
+    width: 100%;
+    text-align: center;
+  }
+
+  .patient-form-container header .navbar ul li a {
+    font-size: 2rem;
+    display: block;
+  }
+
+  .nav-toggle {
+    top: 5.5rem;
+    opacity: 1;
+  }
+
+  .patient-profile .button {
+    margin-left: 32.5%;
+  }
+}
