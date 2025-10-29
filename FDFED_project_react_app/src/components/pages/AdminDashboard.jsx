@@ -267,7 +267,37 @@ const AdminDashboard = () => {
     setFilteredUsers(filtered);
   };
 
- 
+  const deleteUser = async (type, id) => {
+    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3002/admin/users/${type}/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await parseResponse(response);
+
+      if (response.ok) {
+        alert(result.message);
+        await fetchUsers(); // Refresh users list
+      } else {
+        alert(result.error || 'Failed to delete user');
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert('Failed to delete user. Please try again.');
+    }
+  };
 
   const clearFilters = () => {
     setUserTypeFilter('all');
@@ -495,7 +525,43 @@ const AdminDashboard = () => {
                   <button onClick={clearFilters}>Clear Filters</button>
                 </div>
                 
-               
+                <table className="users-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>Filter Value</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading.users ? (
+                      <tr>
+                        <td colSpan="4" className="loading">Loading data...</td>
+                      </tr>
+                    ) : filteredUsers.length === 0 ? (
+                      <tr>
+                        <td colSpan="4">No users found</td>
+                      </tr>
+                    ) : (
+                      filteredUsers.map(user => (
+                        <tr key={`${user.type}-${user._id}`}>
+                          <td>{user.name}</td>
+                          <td>{user.type}</td>
+                          <td>{getFilterDisplayValue(user)}</td>
+                          <td>
+                            <button 
+                              className="delete-btn"
+                              onClick={() => deleteUser(user.type, user._id)}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </section>
           )}
