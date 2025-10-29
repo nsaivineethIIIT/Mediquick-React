@@ -17,7 +17,11 @@ const PatientProfile = () => {
     upcoming: true
   });
   const [errors, setErrors] = useState({});
-  
+  const [chatModal, setChatModal] = useState({
+    isOpen: false,
+    appointmentId: null,
+    messages: []
+  });
   
   const messageInputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -137,7 +141,114 @@ const PatientProfile = () => {
   };
 
   // Chat functionality
-  
+  const openChat = (appointmentId) => {
+    setChatModal({
+      isOpen: true,
+      appointmentId,
+      messages: []
+    });
+    loadMessages(appointmentId);
+  };
+
+  const closeChat = () => {
+    setChatModal({
+      isOpen: false,
+      appointmentId: null,
+      messages: []
+    });
+  };
+
+  const loadMessages = async (appointmentId) => {
+    try {
+      const response = await fetch(`http://localhost:3002/chat/${appointmentId}`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      
+      if (data.messages) {
+        setChatModal(prev => ({
+          ...prev,
+          messages: data.messages
+        }));
+        
+        // Scroll to bottom of chat
+        setTimeout(() => {
+          if (chatMessagesRef.current) {
+            chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+          }
+        }, 100);
+      }
+    } catch (err) {
+      console.error('Error loading messages:', err);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!messageInputRef.current?.value.trim() || !chatModal.appointmentId) return;
+    
+    try {
+      const response = await fetch('http://localhost:3002/chat/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          appointmentId: chatModal.appointmentId,
+          message: messageInputRef.current.value.trim(),
+          senderType: 'patient'
+        })
+      });
+      
+      if (response.ok) {
+        messageInputRef.current.value = '';
+        loadMessages(chatModal.appointmentId);
+      }
+    } catch (err) {
+      console.error('Error sending message:', err);
+    }
+  };
+
+  const sendFile = async () => {
+    const file = fileInputRef.current?.files[0];
+    if (!file || !chatModal.appointmentId) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('appointmentId', chatModal.appointmentId);
+    formData.append('senderType', 'patient');
+
+    try {
+      const response = await fetch('http://localhost:3002/chat/send-file', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        fileInputRef.current.value = '';
+        loadMessages(chatModal.appointmentId);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to send file');
+      }
+    } catch (error) {
+      console.error('Error sending file:', error);
+      alert('Failed to send file');
+    }
+  };
+
+  const handleFileInputChange = () => {
+    if (fileInputRef.current?.files.length > 0) {
+      sendFile();
+    }
+  };
+
+  const handleMessageKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      sendMessage();
+    }
+  };
 
   // Close profile and redirect to dashboard
   const closeProfile = () => {
@@ -749,7 +860,58 @@ const PatientProfile = () => {
       </section>
 
       {/* Chat Modal */}
-     
+      {chatModal.isOpen && (
+        <div className="modal">
+          <div className="modal-content">
+            <span className="modal-close" onClick={closeChat}>&times;</span>
+            <h2>Chat with Doctor</h2>
+            <div 
+              ref={chatMessagesRef}
+              className="chat-messages"
+            >
+              {chatModal.messages.map((msg, index) => (
+                <div 
+                  key={index} 
+                  className={`message ${msg.senderType === 'patient' ? 'sent' : 'received'}`}
+                >
+                  {msg.isFile ? (
+                    <a 
+                      href={`/chat/download/${msg.fileName}`}
+                      style={{ color: 'inherit', textDecoration: 'none' }}
+                    >
+                      📎 {msg.fileName} (Download)
+                    </a>
+                  ) : (
+                    msg.message
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="chat-input">
+              <input 
+                ref={messageInputRef}
+                type="text" 
+                placeholder="Type your message..." 
+                onKeyPress={handleMessageKeyPress}
+              />
+              <input 
+                ref={fileInputRef}
+                type="file" 
+                accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif" 
+                style={{ display: 'none' }}
+                onChange={handleFileInputChange}
+              />
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                title="Upload File"
+              >
+                📎
+              </button>
+              <button onClick={sendMessage}>Send</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
