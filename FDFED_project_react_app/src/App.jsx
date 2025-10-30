@@ -11,6 +11,15 @@ import BookDocOnline from './components/pages/BookDocOnline';
 import DoctorProfilePatient from './components/pages/DoctorProfilePatient';
 import DoctorForm from './components/pages/DoctorForm';
 import DoctorDashboard from './components/pages/DoctorDashboard';
+import PatientProfile from './components/pages/PatientProfile';
+import DoctorProfile from './components/pages/DoctorProfile';
+import AdminForm from './components/pages/AdminForm';
+import AdminDashboard from './components/pages/AdminDashboard';
+import AdminSearchData from './components/pages/AdminSearchData';
+import PatientEditProfile from './components/pages/PatientEditProfile';
+import DoctorEditProfile from './components/pages/DoctorEditProfile';
+import AdminProfile from './components/pages/AdminProfile';
+import AdminEditProfile from './components/pages/AdminEditProfile';
 // import Blog from './components/pages/Blog';
 // import Contact from './components/pages/Contact';
 // import DoctorForm from './components/pages/DoctorForm';
@@ -32,6 +41,15 @@ function App() {
         <Route path="/patient/doctor-profile-patient/:id" element={<DoctorProfilePatient />} />
         <Route path="/doctor/form" element={<DoctorForm />} />
         <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
+        <Route path="/patient/profile" element={<PatientProfile />} />
+        <Route path="/doctor/profile" element={<DoctorProfile />} />
+        <Route path="/admin/form" element={<AdminForm />} />
+        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/admin/search-data" element={<AdminSearchData />} />
+        <Route path="/patient/edit-profile" element={<PatientEditProfile />} />
+        <Route path="/doctor/edit-profile" element={<DoctorEditProfile />} />
+        <Route path="/admin/profile" element={<AdminProfile />} />
+        <Route path="/admin/edit-profile" element={<AdminEditProfile />}/>
         {/* <Route path="/about" element={<About />} /> */}
         {/* <Route path="/faqs" element={<FAQ />} /> */}
         {/* <Route path="/blog" element={<Blog />} /> */}
