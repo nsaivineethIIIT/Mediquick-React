@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Header from './components/common/Header';
 import Home from './components/common/Home';
 import Footer from './components/common/Footer';
-// import About from './components/pages/About';
 import FAQs from './components/FAQ';
 import PatientForm from './components/pages/PatientForm';
 import PatientDashboard from './components/pages/PatientDashboard';
@@ -20,13 +19,24 @@ import PatientEditProfile from './components/pages/PatientEditProfile';
 import DoctorEditProfile from './components/pages/DoctorEditProfile';
 import AdminProfile from './components/pages/AdminProfile';
 import AdminEditProfile from './components/pages/AdminEditProfile';
-// import Blog from './components/pages/Blog';
-// import Contact from './components/pages/Contact';
-// import DoctorForm from './components/pages/DoctorForm';
-// import PatientForm from './components/pages/PatientForm';
-// import AdminForm from './components/pages/AdminForm';
-// import EmployeeForm from './components/pages/EmployeeForm';
-// import SupplierForm from './components/pages/SupplierForm';
+import EmployeeForm from './components/pages/EmployeeForm';
+import EmployeeDashboard from './components/pages/EmployeeDashboard';
+import EmployeeProfile from './components/pages/EmployeeProfile';
+import EmployeeEditProfile from './components/pages/EmployeeEditProfile';
+import DoctorGeneratePrescriptions from './components/pages/DoctorGeneratePrescriptions';
+import DoctorPrescriptions from './components/pages/DoctorPrescriptions';
+import PatientPrescriptions from './components/pages/PatientPrescriptions';
+
+// NEW IMPORTS for E-commerce flow
+import OrderMedicines from './components/pages/OrderMedicines';
+import MedicineDetail from './components/pages/MedicineDetail';
+import PatientCart from './components/pages/PatientCart';
+import Checkout from './components/pages/Checkout'; 
+import PatientOrders from './components/pages/PatientOrders';
+import OrderDetails from './components/pages/OrderDetails';
+import PaymentPage from './components/pages/PaymentPage';
+import OrderSuccess from './components/pages/OrderSuccess';
+
 
 function App() {
   return (
@@ -39,28 +49,44 @@ function App() {
         <Route path="/patient/book-appointment" element={<BookAppointment />} />
         <Route path="/patient/book-doc-online" element={<BookDocOnline />} />
         <Route path="/patient/doctor-profile-patient/:id" element={<DoctorProfilePatient />} />
+        
+        {/* DOCTOR ROUTES */}
         <Route path="/doctor/form" element={<DoctorForm />} />
         <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
-        <Route path="/patient/profile" element={<PatientProfile />} />
         <Route path="/doctor/profile" element={<DoctorProfile />} />
+        <Route path="/doctor/edit-profile" element={<DoctorEditProfile />} />
+        <Route path="/doctor/generate-prescriptions" element={<DoctorGeneratePrescriptions />} />
+        <Route path="/doctor/prescriptions" element={<DoctorPrescriptions />} />
+        
+        {/* ADMIN ROUTES */}
         <Route path="/admin/form" element={<AdminForm />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/search-data" element={<AdminSearchData />} />
-        <Route path="/patient/edit-profile" element={<PatientEditProfile />} />
-        <Route path="/doctor/edit-profile" element={<DoctorEditProfile />} />
         <Route path="/admin/profile" element={<AdminProfile />} />
         <Route path="/admin/edit-profile" element={<AdminEditProfile />}/>
-        {/* <Route path="/about" element={<About />} /> */}
-        {/* <Route path="/faqs" element={<FAQ />} /> */}
-        {/* <Route path="/blog" element={<Blog />} /> */}
-        {/* <Route path="/contact" element={<Contact />} /> */}
-        {/* <Route path="/doctor/form" element={<DoctorForm />} /> */}
-        {/* <Route path="/patient/form" element={<PatientForm />} /> */}
-        {/* <Route path="/admin/form" element={<AdminForm />} /> */}
-        {/* <Route path="/employee/form" element={<EmployeeForm />} /> */}
-        {/* <Route path="/supplier/form" element={<SupplierForm />} /> */}
-        {/* <Route path="/privacy" element={<div>Privacy Policy</div>} /> */}
-        {/* <Route path="/terms" element={<div>Terms & Conditions</div>} /> */}
+        
+        {/* EMPLOYEE ROUTES */}
+        <Route path="/employee/form" element={<EmployeeForm />} />
+        <Route path="/employee/dashboard" element={<EmployeeDashboard />} />
+        <Route path="/employee/profile" element={<EmployeeProfile />} />
+        <Route path="/employee/edit-profile" element={<EmployeeEditProfile />} />
+        
+        {/* PATIENT PROFILE/EDIT ROUTES */}
+        <Route path="/patient/profile" element={<PatientProfile />} />
+        <Route path="/patient/edit-profile" element={<PatientEditProfile />} />
+        <Route path="/patient/prescriptions" element={<PatientPrescriptions />} />
+
+        {/* NEW E-COMMERCE ROUTES */}
+        <Route path="/patient/order-medicines" element={<OrderMedicines />} />
+        <Route path="/patient/medicines/:id" element={<MedicineDetail />} />
+        <Route path="/patient/cart" element={<PatientCart />} />
+        <Route path="/patient/orders" element={<PatientOrders />} />
+        <Route path="/patient/orders/:id" element={<OrderDetails />} />
+        <Route path="/patient/checkout" element={<Checkout />} /> 
+        <Route path="/patient/order-details" element={<OrderDetails />} />
+        <Route path="/patient/payment" element={<PaymentPage />} />
+        <Route path="/patient/order-success" element={<OrderSuccess />} />
+
       </Routes>
       <Footer />
     </BrowserRouter>

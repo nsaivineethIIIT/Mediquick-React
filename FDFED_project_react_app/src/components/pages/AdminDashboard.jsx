@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '../../assets/css/AdminDashboard.css';
 import Footer from '../common/Footer';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState('users');
@@ -14,15 +14,21 @@ const AdminDashboard = () => {
   const [financeData, setFinanceData] = useState([]);
   const [earningsData, setEarningsData] = useState({});
   const [revenueSummary, setRevenueSummary] = useState({});
+  const [medicineOrders, setMedicineOrders] = useState([]);
+  const [medicineFinance, setMedicineFinance] = useState({ rows: [], totals: { totalAmount: 0, totalCommission: 0 } }); 
   const [loading, setLoading] = useState({
     users: true,
     signins: true,
     appointments: true,
     finance: true,
-    earnings: true
+    earnings: true,
+    medicineOrders: true,
+    medicineFinance: true, 
   });
   const [error, setError] = useState('');
   const [isNavOpen, setIsNavOpen] = useState(false);
+  const navigate = useNavigate();
+  const BASE_URL = 'http://localhost:3002';
 
   // Check if response is JSON before parsing
   const parseResponse = async (response) => {
@@ -43,6 +49,8 @@ const AdminDashboard = () => {
     fetchFinanceData();
     fetchEarningsData();
     fetchRevenueSummary();
+    fetchMedicineFinanceData();
+    fetchMedicineOrders(); 
   }, []);
 
   // Filter users when filters change
@@ -71,7 +79,7 @@ const AdminDashboard = () => {
       setLoading(prev => ({ ...prev, users: true }));
       setError('');
       
-      const response = await fetch('http://localhost:3002/admin/users', {
+      const response = await fetch(`${BASE_URL}/admin/users`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -101,7 +109,7 @@ const AdminDashboard = () => {
       setLoading(prev => ({ ...prev, signins: true }));
       setError('');
       
-      const response = await fetch('http://localhost:3002/admin/api/signins', {
+      const response = await fetch(`${BASE_URL}/admin/api/signins`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -110,7 +118,7 @@ const AdminDashboard = () => {
 
       if (!response.ok) {
         if (response.status === 401) {
-          return; // Already handled by fetchUsers
+          return;
         }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -130,7 +138,7 @@ const AdminDashboard = () => {
       setLoading(prev => ({ ...prev, appointments: true }));
       setError('');
       
-      const response = await fetch('http://localhost:3002/admin/api/appointments', {
+      const response = await fetch(`${BASE_URL}/admin/api/appointments`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -139,7 +147,7 @@ const AdminDashboard = () => {
 
       if (!response.ok) {
         if (response.status === 401) {
-          return; // Already handled by fetchUsers
+          return;
         }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -159,7 +167,7 @@ const AdminDashboard = () => {
       setLoading(prev => ({ ...prev, finance: true }));
       setError('');
       
-      const response = await fetch('http://localhost:3002/admin/api/finance', {
+      const response = await fetch(`${BASE_URL}/admin/api/finance`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -168,7 +176,7 @@ const AdminDashboard = () => {
 
       if (!response.ok) {
         if (response.status === 401) {
-          return; // Already handled by fetchUsers
+          return;
         }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -188,7 +196,7 @@ const AdminDashboard = () => {
       setLoading(prev => ({ ...prev, earnings: true }));
       setError('');
       
-      const response = await fetch('http://localhost:3002/admin/api/earnings', {
+      const response = await fetch(`${BASE_URL}/admin/api/earnings`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -197,7 +205,7 @@ const AdminDashboard = () => {
 
       if (!response.ok) {
         if (response.status === 401) {
-          return; // Already handled by fetchUsers
+          return;
         }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -216,7 +224,7 @@ const AdminDashboard = () => {
     try {
       setError('');
       
-      const response = await fetch('http://localhost:3002/admin/api/revenue-summary', {
+      const response = await fetch(`${BASE_URL}/admin/api/revenue-summary`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -225,7 +233,7 @@ const AdminDashboard = () => {
 
       if (!response.ok) {
         if (response.status === 401) {
-          return; // Already handled by fetchUsers
+          return;
         }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -237,6 +245,61 @@ const AdminDashboard = () => {
       setError(`Failed to load revenue summary: ${error.message}`);
     }
   };
+
+  // Fetch Medicine Orders
+  const fetchMedicineOrders = async () => {
+    try {
+      setLoading(prev => ({ ...prev, medicineOrders: true }));
+      setError('');
+      
+      const response = await fetch(`${BASE_URL}/admin/api/medicine-orders`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          return;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await parseResponse(response);
+      setMedicineOrders(data);
+    } catch (error) {
+      console.error('Error fetching medicine orders:', error);
+      setError(`Failed to load medicine orders: ${error.message}`);
+    } finally {
+      setLoading(prev => ({ ...prev, medicineOrders: false }));
+    }
+  };
+
+  // NEW: Fetch Medicine Finance Data
+  const fetchMedicineFinanceData = async () => {
+    setLoading(prev => ({ ...prev, medicineFinance: true }));
+    try {
+      const response = await fetch(`${BASE_URL}/admin/api/medicine-finance`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await parseResponse(response);
+      setMedicineFinance(data);
+    } catch (error) {
+      console.error('Error fetching medicine finance data:', error);
+    } finally {
+      setLoading(prev => ({ ...prev, medicineFinance: false }));
+    }
+  };
+
 
   // User Management Functions
   const filterUsers = () => {
@@ -273,7 +336,7 @@ const AdminDashboard = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3002/admin/users/${type}/${id}`, {
+      const response = await fetch(`${BASE_URL}/admin/users/${type}/${id}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: {
@@ -354,6 +417,8 @@ const AdminDashboard = () => {
     fetchFinanceData();
     fetchEarningsData();
     fetchRevenueSummary();
+    fetchMedicineFinanceData();
+    fetchMedicineOrders();
   };
 
   // Format currency
@@ -361,6 +426,14 @@ const AdminDashboard = () => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
+    }).format(amount || 0);
+  };
+
+  // Format currency (INR) for Medicine Finance
+  const formatCurrencyINR = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR'
     }).format(amount || 0);
   };
 
@@ -397,17 +470,11 @@ const AdminDashboard = () => {
             <li><a href="#appointments" onClick={() => scrollToSection('appointments')}>Appointments</a></li>
             <li><a href="#signins" onClick={() => scrollToSection('signins')}>Recent SignIns</a></li>
             <li><a href="#finance" onClick={() => scrollToSection('finance')}>Finance</a></li>
+            <li><a href="#medicine-finance" onClick={() => scrollToSection('medicine-finance')}>Medicine Finance</a></li>
             <li><a href="#users" onClick={() => scrollToSection('users')}>Manage Users</a></li>
             <Link to="/admin/search-data">Search data</Link>
             <li>
-              <a href="/admin/profile">
-                <img 
-                  src="https://static.thenounproject.com/png/638636-200.png" 
-                  alt="Profile Image" 
-                  height="30px" 
-                  width="30px" 
-                />
-              </a>
+              <Link to="/admin/profile" >Profile</Link>
             </li>
           </ul>
         </nav>
@@ -450,7 +517,15 @@ const AdminDashboard = () => {
                 className={activeSection === 'finance' ? 'active' : ''}
                 onClick={() => setActiveSection('finance')}
               >
-                Finance
+                Appointment Finance
+              </button>
+            </li>
+             <li>
+              <button 
+                className={activeSection === 'medicine-finance' ? 'active' : ''}
+                onClick={() => setActiveSection('medicine-finance')}
+              >
+                Medicine Finance
               </button>
             </li>
             <li>
@@ -462,19 +537,27 @@ const AdminDashboard = () => {
               </button>
             </li>
             <li>
-              <a href="/admin/search-data" className="nav-link">
-                Search Data
-              </a>
+              <button 
+                className={activeSection === 'medicineOrders' ? 'active' : ''}
+                onClick={() => setActiveSection('medicineOrders')}
+              >
+                Medicine Orders
+              </button>
             </li>
             <li>
-              <a href="/admin/profile" className="nav-link">
+              <Link to="/admin/search-data" className="nav-link">
+                Search Data
+              </Link>
+            </li>
+            <li>
+              <Link to="/admin/profile" className="nav-link">
                 <img 
                   src="https://static.thenounproject.com/png/638636-200.png" 
                   alt="Profile" 
                   className="profile-icon"
                 />
                 Profile
-              </a>
+              </Link>
             </li>
             <li>
               <a href="/logout" className="nav-link logout">
@@ -493,7 +576,7 @@ const AdminDashboard = () => {
               <button onClick={retryFetchData} className="retry-btn">
                 Retry
               </button>
-              <button onClick={() => window.location.href = '/admin/form'} className="login-btn">
+              <button onClick={() => navigate('/admin/form')} className="login-btn">
                 Go to Login
               </button>
             </div>
@@ -658,10 +741,10 @@ const AdminDashboard = () => {
             </section>
           )}
 
-          {/* Finance Section */}
+          {/* Appointment Finance Section */}
           {activeSection === 'finance' && (
             <section className="section finance-section">
-              <h1 className="heading">Finance</h1>
+              <h1 className="heading">Appointment Finance</h1>
               <div className="table-container">
                 <div className="finance-summary">
                   <div className="summary-cards">
@@ -727,6 +810,112 @@ const AdminDashboard = () => {
                       <td></td>
                     </tr>
                   </tfoot>
+                </table>
+              </div>
+            </section>
+          )}
+          
+          {/* Medicine Orders Finance Section */}
+          {activeSection === 'medicine-finance' && (
+            <section className="section finance-section">
+              <h1 className="heading">Medicine Orders Finance (5% Commission)</h1>
+              <div className="table-container">
+                <table className="finance-table">
+                  <thead>
+                    <tr>
+                      <th>Patient</th>
+                      <th>Medicine</th>
+                      <th>Supplier</th>
+                      <th>Date</th>
+                      <th>Total Amount (₹)</th>
+                      <th>MediQuick Commission (5%) (₹)</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading.medicineFinance ? (
+                      <tr>
+                        <td colSpan="7" className="loading">Loading medicine finance data...</td>
+                      </tr>
+                    ) : medicineFinance.rows.length === 0 ? (
+                      <tr>
+                        <td colSpan="7">No confirmed medicine orders found</td>
+                      </tr>
+                    ) : (
+                      medicineFinance.rows.map(row => (
+                        <tr key={row._id}>
+                          <td>{row.patientName}</td>
+                          <td>{row.medicineName}</td>
+                          <td>{row.supplierName}</td>
+                          <td>{row.date}</td>
+                          <td>{formatCurrencyINR(row.totalAmount)}</td>
+                          <td>{formatCurrencyINR(row.mediQuickCommission)}</td>
+                          <td>
+                            <span className={`status ${row.status}`}>
+                              {row.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan="4"><strong>Totals</strong></td>
+                      <td><strong>{formatCurrencyINR(medicineFinance.totals.totalAmount)}</strong></td>
+                      <td><strong>{formatCurrencyINR(medicineFinance.totals.totalCommission)}</strong></td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {/* Medicine Orders Section */}
+          {activeSection === 'medicineOrders' && (
+            <section className="section orders-section">
+              <h1 className="heading">Medicine Orders</h1>
+              <div className="table-container">
+                <table className="orders-table">
+                  <thead>
+                    <tr>
+                      <th>Order ID</th>
+                      <th>Patient</th>
+                      <th>Medicine</th>
+                      <th>Supplier</th>
+                      <th>Date</th>
+                      <th>Total Amount</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading.medicineOrders ? (
+                      <tr>
+                        <td colSpan="7" className="loading">Loading orders...</td>
+                      </tr>
+                    ) : medicineOrders.length === 0 ? (
+                      <tr>
+                        <td colSpan="7">No medicine orders found</td>
+                      </tr>
+                    ) : (
+                      medicineOrders.map(order => (
+                        <tr key={order._id}>
+                          <td>{order.orderId}</td>
+                          <td>{order.patientName || 'Unknown Patient'}</td>
+                          <td>{order.medicineName}</td>
+                          <td>{order.supplierName || 'Unknown Supplier'}</td>
+                          <td>{formatDate(order.date)}</td>
+                          <td>{formatCurrencyINR(order.totalAmount)}</td>
+                          <td>
+                            <span className={`status ${order.status || 'pending'}`}>
+                              {order.status || 'Pending'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
                 </table>
               </div>
             </section>
