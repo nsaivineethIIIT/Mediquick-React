@@ -789,6 +789,141 @@ exports.getForm = (req, res) => {
     res.render('patient_form');
 }
 
+// API: get orders for logged-in patient
+exports.getOrders = async (req, res) => {
+    try {
+        if (!req.session.patientId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const Order = require('../models/Order');
+        const orders = await Order.find({ patientId: req.session.patientId })
+            .populate('medicineId', 'name medicineID cost')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const formatted = orders.map(o => ({
+            id: o._id,
+            medicineName: o.medicineId?.name || 'Unknown',
+            medicineID: o.medicineId?.medicineID || 'N/A',
+            quantity: o.quantity,
+            totalCost: o.totalCost,
+            status: o.status,
+            orderDate: o.createdAt ? o.createdAt.toLocaleDateString() : '',
+            deliveryAddress: o.deliveryAddress || null,
+            paymentMethod: o.paymentMethod || null
+        }));
+
+        res.json(formatted);
+    } catch (err) {
+        console.error('Error fetching patient orders:', err.message);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+// Get order details
+exports.getOrderDetails = async (req, res) => {
+    try {
+        if (!req.session.patientId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const orderId = req.params.id;
+        const order = await Order.findById(orderId)
+            .populate('medicineId', 'name medicineID cost')
+            .lean();
+
+        if (!order) {
+            return res.status(404).render('error', {
+                message: 'Order not found',
+                error: { status: 404 }
+            });
+        }
+
+        // Check if the order belongs to the logged-in patient
+        if (String(order.patientId) !== String(req.session.patientId)) {
+            return res.status(403).render('error', {
+                message: 'Access denied',
+                error: { status: 403 }
+            });
+        }
+
+        // Build an orderDetails object compatible with order_details.ejs
+        const orderDetails = {
+            id: order._id,
+            items: [
+                {
+                    medicineName: order.medicineId?.name || 'Unknown',
+                    unitPrice: order.medicineId?.cost || 0,
+                    quantity: order.quantity,
+                    total: order.totalCost || (order.quantity * (order.medicineId?.cost || 0))
+                }
+            ],
+            deliveryAddress: order.deliveryAddress || {},
+            subtotal: order.totalCost || 0,
+            deliveryCharge: order.deliveryCharge || 0,
+            finalTotal: order.finalAmount || (order.totalCost || 0) + (order.deliveryCharge || 0),
+            paymentMethod: order.paymentMethod || null,
+            status: order.status || 'pending',
+            orderDate: order.createdAt
+        };
+
+        res.render('order_details', { orderDetails, title: 'Order Details' });
+    } catch (error) {
+        console.error('Error getting order details:', error);
+        res.status(500).render('error', {
+            message: 'Error fetching order details',
+            error: { status: 500 }
+        });
+    }
+};
+
+// NEW: API endpoint to get order details as JSON for React
+exports.getOrderDetailsAPI = async (req, res) => {
+    try {
+        if (!req.session.patientId) {
+            return res.status(401).json({ success: false, error: 'Unauthorized' });
+        }
+
+        const orderId = req.params.id;
+        const order = await Order.findById(orderId)
+            .populate('medicineId', 'name medicineID cost image')
+            .lean();
+
+        if (!order) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+
+        if (String(order.patientId) !== String(req.session.patientId)) {
+            return res.status(403).json({ success: false, error: 'Access denied' });
+        }
+
+        // Structure the response to match what the OrderDetails component expects
+        const orderDetails = {
+            id: order._id,
+            items: [
+                {
+                    medicineName: order.medicineId?.name || 'Unknown',
+                    unitPrice: order.medicineId?.cost || 0,
+                    quantity: order.quantity,
+                    total: order.totalCost || 0,
+                    medicine: { image: order.medicineId?.image }
+                }
+            ],
+            deliveryAddress: order.deliveryAddress || {},
+            subtotal: order.totalCost || 0,
+            deliveryCharge: order.deliveryCharge || 0,
+            finalTotal: order.finalAmount || 0,
+            paymentMethod: order.paymentMethod || 'N/A',
+            status: order.status || 'pending',
+            orderDate: order.createdAt
+        };
+
+        res.json({ success: true, orderDetails });
+    } catch (error) {
+        console.error('Error getting order details API:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+};
+
 exports.getBookAppointment = async (req, res) => {
     // Check if patient is logged in
     if (!req.session.patientId) {
@@ -910,33 +1045,72 @@ exports.getDoctorProfilePatient = async (req, res) => {
     }
 };
 
-exports.getOrderMedicines = async (req, res) => {
+// API endpoint for getting doctor data as JSON
+exports.getDoctorAPI = async (req, res) => {
     try {
         if (!req.session.patientId) {
-            return res.redirect('/patient/form?error=login_required');
+            return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        const medicines = await Medicine.find().lean();
+        const doctor = await Doctor.findById(req.params.id);
+        if (!doctor) {
+            return res.status(404).json({ error: 'Doctor not found' });
+        }
 
-        // Format medicines if needed (e.g., add formatted dates)
-        const formattedMedicines = medicines.map(med => ({
-            ...med,
-            formattedExpiryDate: med.expiryDate ? new Date(med.expiryDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short' }) : 'Not specified'
-        }));
+        // Format the doctor data for API response
+        const doctorData = {
+            id: doctor._id.toString(),
+            name: doctor.name,
+            specialization: doctor.specialization || 'General Physician',
+            location: doctor.location,
+            email: doctor.email,
+            availability: '9:00 AM - 5:00 PM',
+            experience: '5+ years',
+            qualifications: doctor.college ? `${doctor.college}, ${doctor.yearOfPassing}` : 'MD',
+            about: `Dr. ${doctor.name} is a specialist in ${doctor.specialization || 'General Medicine'} practicing in ${doctor.location}.`,
+            reviews: [
+                { patientName: 'Rahul', comment: 'Excellent doctor, very patient and understanding.' },
+                { patientName: 'Priya', comment: 'Great diagnosis and treatment plan.' }
+            ],
+            languages: 'English, Hindi',
+            image: 'https://icons.veryicon.com/png/o/healthcate-medical/orange-particle/doctor-20.png',
+            consultationFee: doctor.consultationFee || 1000
+        };
 
-        res.render('order_medicine', {
-            medicines: formattedMedicines,
-            title: 'Order Medicines'
-        });
+        res.json(doctorData);
     } catch (err) {
-        console.error("Error fetching medicines for order:", err.message);
-        res.status(500).render('error', {
-            message: 'Internal server error',
-            details: process.env.NODE_ENV === 'development' ? err.message : undefined,
-            redirect: '/patient/dashboard'
-        });
+        console.error("Error fetching doctor:", err);
+        res.status(500).json({ error: 'Error fetching doctor details' });
     }
 };
+
+// exports.getOrderMedicines = async (req, res) => {
+//     try {
+//         if (!req.session.patientId) {
+//             return res.redirect('/patient/form?error=login_required');
+//         }
+
+//         const medicines = await Medicine.find().lean();
+
+//         // Format medicines if needed (e.g., add formatted dates)
+//         const formattedMedicines = medicines.map(med => ({
+//             ...med,
+//             formattedExpiryDate: med.expiryDate ? new Date(med.expiryDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short' }) : 'Not specified'
+//         }));
+
+//         res.render('order_medicine', {
+//             medicines: formattedMedicines,
+//             title: 'Order Medicines'
+//         });
+//     } catch (err) {
+//         console.error("Error fetching medicines for order:", err.message);
+//         res.status(500).render('error', {
+//             message: 'Internal server error',
+//             details: process.env.NODE_ENV === 'development' ? err.message : undefined,
+//             redirect: '/patient/dashboard'
+//         });
+//     }
+// };
 exports.postAddToCart = async (req, res) => {
     try {
         if (!req.session.patientId) {
@@ -1033,10 +1207,10 @@ exports.getDoctorsOnline = async (req, res) => {
 
 exports.getDoctorsOffline = async (req, res) => {
     try {
-        
-        const doctors = await Doctor.find({ onlineStatus: 'offline',isApproved:true });
+        // Fetch offline doctors
+        const doctors = await Doctor.find({ onlineStatus: 'offline' });
 
-        
+        // Transform the data for the frontend
         const doctorsData = doctors.map(doc => ({
             id: doc._id.toString(),
             name: doc.name,
@@ -1226,20 +1400,20 @@ exports.getPrescriptions = async (req, res) => {
             return res.redirect('/patient/form?error=login_required');
         }
 
-        
+        // Fetch prescriptions for the patient using your schema
         const prescriptions = await Prescription.find({ 
             patientId: req.session.patientId 
         })
         .populate('doctorId', 'name specialization registrationNumber')
-        .populate('patientId', 'name email mobile') 
+        .populate('patientId', 'name email mobile') // Populate patient data if needed
         .sort({ createdAt: -1 })
         .lean();
 
-        console.log('Fetched prescriptions:', prescriptions); 
+        console.log('Fetched prescriptions:', prescriptions); // Debug log
 
-        
+        // Transform the data to work with your schema
         const transformedPrescriptions = prescriptions.map(prescription => {
-            console.log('Processing prescription:', prescription); 
+            console.log('Processing prescription:', prescription); // Debug log
             
             return {
                 _id: prescription._id,
@@ -1261,7 +1435,7 @@ exports.getPrescriptions = async (req, res) => {
             };
         });
 
-        console.log('Transformed prescriptions:', transformedPrescriptions); 
+        console.log('Transformed prescriptions:', transformedPrescriptions); // Debug log
 
         res.render('patient_prescriptions', {
             prescriptions: transformedPrescriptions,
@@ -1349,19 +1523,19 @@ exports.downloadPrescription = async (req, res) => {
             return res.status(404).json({ error: 'Prescription not found' });
         }
 
-        
+        // Check if the prescription belongs to the logged-in patient
         if (prescription.patientId.toString() !== req.session.patientId) {
             return res.status(403).json({ error: 'Access denied' });
         }
 
-        
+        // Generate PDF content
         const pdfContent = generatePrescriptionPDF(prescription);
         
-        
+        // Set headers for PDF download
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="prescription-${prescriptionId}.pdf"`);
         
-        
+        // Send PDF
         pdfContent.pipe(res);
         
     } catch (err) {
@@ -1376,18 +1550,18 @@ const generatePrescriptionPDF = (prescription) => {
     const PDFDocument = require('pdfkit');
     const doc = new PDFDocument({ margin: 50 });
     
-    
+    // Set up colors and fonts
      const primaryColor = '#444d53';
     const secondaryColor ='#0188df';
     const accentColor = '#0188df';
     
-    
+    // Header with styling
     doc.fillColor(accentColor)
        .fontSize(24)
        .font('Helvetica-Bold')
        .text('MEDIQUICK PRESCRIPTION', { align: 'center' });
     
-    
+    // Add decorative line
     doc.moveTo(50, 90)
        .lineTo(550, 90)
        .strokeColor(accentColor)
@@ -1396,7 +1570,7 @@ const generatePrescriptionPDF = (prescription) => {
     
     doc.moveDown(1.5);
     
-    
+    // Doctor info with styling
     doc.fillColor(primaryColor)
        .fontSize(14)
        .font('Helvetica-Bold')
@@ -1418,7 +1592,7 @@ const generatePrescriptionPDF = (prescription) => {
     
     doc.moveDown();
     
-    
+    // Patient info with styling
     doc.fillColor(primaryColor)
        .fontSize(14)
        .font('Helvetica-Bold')
@@ -1459,7 +1633,7 @@ const generatePrescriptionPDF = (prescription) => {
         doc.moveDown();
     }
     
-    
+    // Medicines with styling
     doc.fillColor(accentColor)
        .fontSize(14)
        .font('Helvetica-Bold')
@@ -1468,7 +1642,7 @@ const generatePrescriptionPDF = (prescription) => {
     doc.moveDown(0.5);
     
     prescription.medicines.forEach((medicine, index) => {
-        
+        // Medicine name with background
         doc.fillColor('#e8f6f3')
            .rect(50, doc.y, 500, 20)
            .fill();
@@ -1480,7 +1654,7 @@ const generatePrescriptionPDF = (prescription) => {
         
         doc.moveDown(1.5);
         
-        
+        // Medicine details with styling
         doc.fillColor(primaryColor)
            .fontSize(10)
            .font('Helvetica')
@@ -1496,7 +1670,7 @@ const generatePrescriptionPDF = (prescription) => {
         doc.moveDown();
     });
     
-    
+    // Additional Notes with styling
     if (prescription.additionalNotes) {
         doc.fillColor(accentColor)
            .fontSize(14)
@@ -1514,7 +1688,7 @@ const generatePrescriptionPDF = (prescription) => {
         doc.moveDown();
     }
     
-    
+    // Important medical information with styling
     doc.fillColor('#e74c3c')
        .fontSize(12)
        .font('Helvetica-Bold')
@@ -1531,7 +1705,7 @@ const generatePrescriptionPDF = (prescription) => {
     
     doc.moveDown(2);
     
-    
+    // Footer with styling
     doc.fillColor('#7f8c8d')
        .fontSize(9)
        .font('Helvetica')
@@ -1542,7 +1716,7 @@ const generatePrescriptionPDF = (prescription) => {
     doc.text(`Prescription ID: ${prescription._id}`, { align: 'center' });
     doc.text(`Patient Email: ${prescription.patientEmail}`, { align: 'center' });
     
-    
+    // Add final decorative line
     doc.moveTo(50, doc.y + 10)
        .lineTo(550, doc.y + 10)
        .strokeColor('#bdc3c7')
@@ -1627,69 +1801,52 @@ const generatePrescriptionPDF = (prescription) => {
 //     doc.end();
 //     return doc;
 // };
-// exports.getProfile = async (req, res) => {
-//     try {
-//         if (!req.session.patientId) {
-//             return res.redirect('/patient/form?error=login_required');
-//         }
-
-//         if (!mongoose.Types.ObjectId.isValid(req.session.patientId)) {
-//             return res.status(400).render('error', {
-//                 message: 'Invalid session data',
-//                 redirect: '/patient/form'
-//             });
-//         }
-
-//         const patient = await Patient.findById(req.session.patientId).lean();
-
-//         if (!patient) {
-//             return res.status(404).render('error', {
-//                 message: 'Patient not found',
-//                 redirect: '/patient/form'
-//             });
-//         }
-
-//         // Render template with patient data directly
-//         res.render('patient_profile', {
-//             patient: {
-//                 name: patient.name,
-//                 email: patient.email,
-//                 mobile: patient.mobile,
-//                 address: patient.address,
-//                 profilePhoto: patient.profilePhoto || '/images/default-patient.svg'
-//             },
-//             title: 'Patient Profile'
-//         });
-//     } catch (err) {
-//         console.error("Error rendering patient profile:", err.message);
-//         res.status(500).render('error', {
-//             message: 'Internal server error',
-//             details: process.env.NODE_ENV === 'development' ? err.message : undefined,
-//             redirect: '/patient/form'
-//         });
-//     }
-// };
-
-//   <h1 id="patientName"><%= patient.name %></h1>
-//                     <p id="patientEmail">Email: <%= patient.email %></p>
-//                     <p id="patientMobile">Mobile: <%= patient.mobile %></p>
-//                     <p id="patientAddress">Address: <%= patient.address %></p>
-exports.getDoctorById = async (req, res) => {
+// Add get order details controller
+exports.getOrderDetails = async (req, res) => {
     try {
-        const { id } = req.params;
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'Invalid doctor ID' });
+        if (!req.session.patientId) {
+            return res.status(401).json({ error: 'Unauthorized' });
         }
-        const doctor = await Doctor.findById(id).select('-password'); // Exclude sensitive fields like password
-        if (!doctor) {
-            return res.status(404).json({ error: 'Doctor not found' });
+
+        const orderId = req.params.id;
+        const order = await Order.findById(orderId)
+            .populate('medicineId', 'name medicineID cost')
+            .lean();
+        
+        if (!order) {
+            return res.status(404).render('error', { 
+                message: 'Order not found',
+                error: { status: 404 } 
+            });
         }
-        res.json(doctor);
-    } catch (err) {
-        console.error('Error fetching doctor by ID:', err.message);
-        res.status(500).json({
-            error: 'Internal server error',
-            details: process.env.NODE_ENV === 'development' ? err.message : undefined
+
+        // Check if the order belongs to the logged-in patient
+        if (order.patientId.toString() !== req.session.patientId) {
+            return res.status(403).render('error', { 
+                message: 'Access denied',
+                error: { status: 403 } 
+            });
+        }
+
+        // Format order data for the view
+        const formattedOrder = {
+            id: order._id,
+            medicineName: order.medicineId?.name || 'Unknown',
+            medicineID: order.medicineId?.medicineID || 'N/A',
+            quantity: order.quantity,
+            totalCost: order.totalCost,
+            status: order.status,
+            orderDate: order.createdAt,
+            deliveryAddress: order.deliveryAddress || null,
+            paymentMethod: order.paymentMethod || null
+        };
+
+        res.render('order_details', { order: formattedOrder });
+    } catch (error) {
+        console.error('Error getting order details:', error);
+        res.status(500).render('error', {
+            message: 'Error fetching order details',
+            error: { status: 500 }
         });
     }
 };
