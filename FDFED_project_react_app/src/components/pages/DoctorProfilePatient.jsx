@@ -17,6 +17,8 @@ const DoctorProfilePatient = () => {
         evening: []
     });
     const [booking, setBooking] = useState(false);
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [paymentMethod, setPaymentMethod] = useState('');
 
     // Get type from query params
     const searchParams = new URLSearchParams(location.search);
@@ -58,6 +60,10 @@ const DoctorProfilePatient = () => {
             updateSlots(new Date(selectedDate));
         }
     }, [selectedDate]);
+
+    useEffect(() => {
+        console.log("Payment modal state changed:", showPaymentModal);
+    }, [showPaymentModal]);
 
     const fetchDoctorProfile = async () => {
         try {
@@ -186,6 +192,17 @@ const DoctorProfilePatient = () => {
             return;
         }
 
+        console.log("Opening payment modal..."); // Debug log
+        // Show payment modal instead of directly booking
+        setShowPaymentModal(true);
+    };
+
+    const handleConfirmPayment = async () => {
+        if (!paymentMethod) {
+            alert("Please select a payment method.");
+            return;
+        }
+
         try {
             setBooking(true);
             
@@ -200,14 +217,16 @@ const DoctorProfilePatient = () => {
                     date: selectedDate,
                     time: selectedTime.replace(/ \(.*\)$/, ''),
                     type: isOnlineConsultation ? 'online' : 'offline',
-                    notes: ''
+                    notes: '',
+                    modeOfPayment: paymentMethod // Include payment method in request
                 })
             });
             
             const result = await response.json();
             
             if (response.ok) {
-                alert(`Appointment booked successfully! ${isOnlineConsultation ? 'Online Consultation' : 'Clinic Visit'}`);
+                setShowPaymentModal(false);
+                alert(`Appointment booked successfully! ${isOnlineConsultation ? 'Online Consultation' : 'Clinic Visit'}\nPayment Method: ${paymentMethod}`);
                 setTimeout(() => {
                     navigate('/patient/dashboard');
                 }, 2000);
@@ -222,6 +241,11 @@ const DoctorProfilePatient = () => {
         } finally {
             setBooking(false);
         }
+    };
+
+    const handleCancelPayment = () => {
+        setShowPaymentModal(false);
+        setPaymentMethod('');
     };
 
     const closeProfile = () => {
@@ -393,6 +417,137 @@ const DoctorProfilePatient = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Payment Modal */}
+            {showPaymentModal && (
+                <div className="payment-modal-overlay" style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    zIndex: 9999
+                }} onClick={(e) => {
+                    // Close modal if clicking on overlay
+                    if (e.target.className === 'payment-modal-overlay') {
+                        handleCancelPayment();
+                    }
+                }}>
+                    <div className="payment-modal" style={{
+                        backgroundColor: 'white',
+                        borderRadius: '1.5rem',
+                        width: '90%',
+                        maxWidth: '55rem',
+                        maxHeight: '90vh',
+                        overflowY: 'auto',
+                        boxShadow: '0 1rem 3rem rgba(0, 0, 0, 0.3)'
+                    }}>
+                        <div className="payment-header">
+                            <h2>Payment</h2>
+                            <button className="close-modal" onClick={handleCancelPayment}>
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+                        
+                        <div className="payment-details">
+                            <div className="appointment-summary">
+                                <h3>Appointment Summary</h3>
+                                <p><strong>Doctor:</strong> Dr. {doctor.name}</p>
+                                <p><strong>Date:</strong> {new Date(selectedDate).toLocaleDateString()}</p>
+                                <p><strong>Time:</strong> {selectedTime}</p>
+                                <p><strong>Type:</strong> {isOnlineConsultation ? 'Online Consultation' : 'Clinic Visit'}</p>
+                                <p className="total-amount"><strong>Amount:</strong> ₹{doctor.consultationFee}</p>
+                            </div>
+
+                            <div className="payment-methods">
+                                <h3>Select Payment Method</h3>
+                                <div className="payment-options">
+                                    <label className={`payment-option ${paymentMethod === 'credit-card' ? 'selected' : ''}`}>
+                                        <input
+                                            type="radio"
+                                            name="payment"
+                                            value="credit-card"
+                                            checked={paymentMethod === 'credit-card'}
+                                            onChange={(e) => setPaymentMethod(e.target.value)}
+                                        />
+                                        <span className="payment-icon">💳</span>
+                                        <span>Credit/Debit Card</span>
+                                    </label>
+
+                                    <label className={`payment-option ${paymentMethod === 'upi' ? 'selected' : ''}`}>
+                                        <input
+                                            type="radio"
+                                            name="payment"
+                                            value="upi"
+                                            checked={paymentMethod === 'upi'}
+                                            onChange={(e) => setPaymentMethod(e.target.value)}
+                                        />
+                                        <span className="payment-icon">📱</span>
+                                        <span>UPI</span>
+                                    </label>
+
+                                    <label className={`payment-option ${paymentMethod === 'net-banking' ? 'selected' : ''}`}>
+                                        <input
+                                            type="radio"
+                                            name="payment"
+                                            value="net-banking"
+                                            checked={paymentMethod === 'net-banking'}
+                                            onChange={(e) => setPaymentMethod(e.target.value)}
+                                        />
+                                        <span className="payment-icon">🏦</span>
+                                        <span>Net Banking</span>
+                                    </label>
+
+                                    <label className={`payment-option ${paymentMethod === 'wallet' ? 'selected' : ''}`}>
+                                        <input
+                                            type="radio"
+                                            name="payment"
+                                            value="wallet"
+                                            checked={paymentMethod === 'wallet'}
+                                            onChange={(e) => setPaymentMethod(e.target.value)}
+                                        />
+                                        <span className="payment-icon">💰</span>
+                                        <span>Wallet</span>
+                                    </label>
+
+                                    <label className={`payment-option ${paymentMethod === 'cash' ? 'selected' : ''}`}>
+                                        <input
+                                            type="radio"
+                                            name="payment"
+                                            value="cash"
+                                            checked={paymentMethod === 'cash'}
+                                            onChange={(e) => setPaymentMethod(e.target.value)}
+                                        />
+                                        <span className="payment-icon">💵</span>
+                                        <span>Cash (Pay at Clinic)</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="payment-actions">
+                                <button 
+                                    className="cancel-payment-btn" 
+                                    onClick={handleCancelPayment}
+                                    disabled={booking}
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    className="confirm-payment-btn" 
+                                    onClick={handleConfirmPayment}
+                                    disabled={!paymentMethod || booking}
+                                >
+                                    {booking ? "Processing..." : "Confirm Payment"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <footer className="footer">
                 <div className="box">
