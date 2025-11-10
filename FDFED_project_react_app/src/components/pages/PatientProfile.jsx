@@ -1,18 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { usePatient } from '../../context/PatientContext';
 
 const PatientProfile = () => {
-  const [patientData, setPatientData] = useState({
-    name: '',
-    email: '',
-    mobile: '',
-    address: '',
-    profilePhoto: '/images/default-patient.svg'
-  });
+  const { patient, loading: profileLoading, error: profileError, refetch: refetchPatient } = usePatient();
+
   const [previousAppointments, setPreviousAppointments] = useState([]);
   const [upcomingAppointments, setUpcomingAppointments] = useState([]);
   const [loading, setLoading] = useState({
-    profile: true,
     previous: true,
     upcoming: true
   });
@@ -27,42 +22,6 @@ const PatientProfile = () => {
   const fileInputRef = useRef(null);
   const chatMessagesRef = useRef(null);
   const navigate = useNavigate();
-
-  // Fetch patient profile data
-  const loadPatientData = async () => {
-    try {
-      console.log('Fetching patient profile data...');
-      
-      const response = await fetch('http://localhost:3002/patient/profile-data', {
-        credentials: 'include'
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || `HTTP error! status: ${response.status}`);
-      }
-      
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to load profile data');
-      }
-      
-      setPatientData({
-        name: data.patient.name,
-        email: data.patient.email,
-        mobile: data.patient.mobile,
-        address: data.patient.address,
-        profilePhoto: data.patient.profilePhoto || '/images/default-patient.svg'
-      });
-      
-      setLoading(prev => ({ ...prev, profile: false }));
-      
-    } catch (error) {
-      console.error('Error loading patient profile data:', error);
-      setErrors(prev => ({ ...prev, profile: error.message }));
-      setLoading(prev => ({ ...prev, profile: false }));
-    }
-  };
 
   // Fetch appointments
   const fetchAppointments = async (type) => {
@@ -257,7 +216,6 @@ const PatientProfile = () => {
 
   // Load data on component mount
   useEffect(() => {
-    loadPatientData();
     fetchAppointments('previous');
     fetchAppointments('upcoming');
   }, []);
@@ -285,7 +243,7 @@ const PatientProfile = () => {
 
   return (
     <div className="patient-profile-container">
-      <style jsx>{`
+      <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
 
         :root {
@@ -731,7 +689,7 @@ const PatientProfile = () => {
           <div className="profile-header">
             <div className="profile-picture">
               <img 
-                src={patientData.profilePhoto} 
+                src={patient?.profilePhoto || '/images/default-patient.svg'} 
                 alt="Patient Profile" 
                 onError={(e) => {
                   e.target.src = '/images/default-patient.svg';
@@ -739,20 +697,22 @@ const PatientProfile = () => {
               />
             </div>
             <div className="profile-info">
-              {loading.profile ? (
+              {profileLoading ? (
                 <div className="loader"></div>
-              ) : errors.profile ? (
+              ) : profileError ? (
                 <div className="error-message">
-                  <p>Error loading profile: {errors.profile}</p>
-                  <button className="retry-btn" onClick={loadPatientData}>Retry</button>
+                  <p>Error loading profile: {profileError}</p>
+                  <button className="retry-btn" onClick={refetchPatient}>Retry</button>
                 </div>
-              ) : (
+              ) : patient ? (
                 <>
-                  <h1 id="patientName">{patientData.name}</h1>
-                  <p id="patientEmail">Email: {patientData.email}</p>
-                  <p id="patientMobile">Mobile: {patientData.mobile}</p>
-                  <p id="patientAddress">Address: {patientData.address}</p>
+                  <h1 id="patientName">{patient.name}</h1>
+                  <p id="patientEmail">Email: {patient.email}</p>
+                  <p id="patientMobile">Mobile: {patient.mobile}</p>
+                  <p id="patientAddress">Address: {patient.address}</p>
                 </>
+              ) : (
+                <p>No profile data available.</p>
               )}
             </div>
           </div>
