@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Header from './components/common/Header';
 import Home from './components/common/Home';
+import './utils/toast.css';
 import Footer from './components/common/Footer';
 import FAQs from './components/FAQ';
 import PatientForm from './components/pages/PatientForm';
@@ -26,7 +27,9 @@ import EmployeeEditProfile from './components/pages/EmployeeEditProfile';
 import DoctorGeneratePrescriptions from './components/pages/DoctorGeneratePrescriptions';
 import DoctorPrescriptions from './components/pages/DoctorPrescriptions';
 import PatientPrescriptions from './components/pages/PatientPrescriptions';
+import SupplierForm from './components/pages/SupplierForm';
 
+import SupplierDashboard from './components/pages/SupplierDashboard';
 // NEW IMPORTS for E-commerce flow
 import OrderMedicines from './components/pages/OrderMedicines';
 import MedicineDetail from './components/pages/MedicineDetail';
@@ -36,7 +39,10 @@ import PatientOrders from './components/pages/PatientOrders';
 import OrderDetails from './components/pages/OrderDetails';
 import PaymentPage from './components/pages/PaymentPage';
 import OrderSuccess from './components/pages/OrderSuccess';
-
+import BlogPage from './components/pages/BlogPage';
+import PostBlog from './components/pages/PostBlog';
+import SingleBlog from './components/pages/SingleBlog';
+import { PatientProvider } from './context/PatientContext';
 
 function App() {
   return (
@@ -72,9 +78,13 @@ function App() {
         <Route path="/employee/edit-profile" element={<EmployeeEditProfile />} />
         
         {/* PATIENT PROFILE/EDIT ROUTES */}
-        <Route path="/patient/profile" element={<PatientProfile />} />
-        <Route path="/patient/edit-profile" element={<PatientEditProfile />} />
+        <Route path="/patient/profile" element={<PatientProvider><PatientProfile /></PatientProvider>} />
+        <Route path="/patient/edit-profile" element={<PatientProvider><PatientEditProfile /></PatientProvider>} />
         <Route path="/patient/prescriptions" element={<PatientPrescriptions />} />
+
+        {/* SUPPLIER ROUTES */}
+        <Route path="/supplier/form" element={<SupplierForm />} />
+        <Route path="/supplier/dashboard" element={<SupplierDashboard />} />
 
         {/* NEW E-COMMERCE ROUTES */}
         <Route path="/patient/order-medicines" element={<OrderMedicines />} />
@@ -86,7 +96,12 @@ function App() {
         <Route path="/patient/order-details" element={<OrderDetails />} />
         <Route path="/patient/payment" element={<PaymentPage />} />
         <Route path="/patient/order-success" element={<OrderSuccess />} />
-
+        {/* BLOG ROUTES */}
+        {/* BLOG ROUTES 📝 (New) */}
+        <Route path="/blog" element={<BlogPage />} />
+        <Route path="/blog/post" element={<PostBlog />} />
+        <Route path="/blog/:id" element={<SingleBlog />} />
+        {/* Add route for single blog view. Component conversion not requested, so using placeholder. */}
       </Routes>
       <Footer />
     </BrowserRouter>
