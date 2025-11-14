@@ -1,39 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useDoctor } from '../../context/DoctorContext';
 
 const DoctorProfile = () => {
-  const [doctorData, setDoctorData] = useState(null);
+  const { doctor, loading: profileLoading, error: profileError } = useDoctor();
   const [upcomingAppointments, setUpcomingAppointments] = useState([]);
   const [previousAppointments, setPreviousAppointments] = useState([]);
   const [loading, setLoading] = useState({
-    profile: true,
     upcoming: true,
     previous: true
   });
   const [errors, setErrors] = useState({});
-  const navigate = useNavigate();
-
-  // Fetch doctor profile data
-  const fetchDoctorProfile = async () => {
-    try {
-      const response = await fetch('http://localhost:3002/doctor/api/profile', {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch doctor profile');
-      }
-      
-      const doctor = await response.json();
-      setDoctorData(doctor);
-      setLoading(prev => ({ ...prev, profile: false }));
-      
-    } catch (error) {
-      console.error('Error fetching doctor profile:', error);
-      setErrors(prev => ({ ...prev, profile: error.message }));
-      setLoading(prev => ({ ...prev, profile: false }));
-    }
-  };
 
   // Fetch appointments
   const fetchAppointments = async () => {
@@ -82,7 +59,6 @@ const DoctorProfile = () => {
 
   // Load data on component mount
   useEffect(() => {
-    fetchDoctorProfile();
     fetchAppointments();
   }, []);
 
@@ -513,41 +489,42 @@ const DoctorProfile = () => {
         
         {/* Doctor Profile Section */}
         <div id="doctor-profile">
-          {loading.profile ? (
+          {profileLoading ? (
             <div className="loading">Loading doctor profile...</div>
-          ) : errors.profile ? (
+          ) : profileError ? (
             <div className="error-message">
-              Error loading doctor profile. <Link to="/doctor/form" className="btn">Go to Login</Link>
+              Error: {profileError}. <Link to="/doctor/form" className="btn">Go to Login</Link>
             </div>
-          ) : doctorData ? (
+          ) : doctor ? (
             <>
               <div className="profile-photo-container">
                 <img 
-                  src={doctorData.profilePhoto || '/images/default-doctor.svg'} 
-                  alt="Profile Photo" 
+                  src={doctor.profilePhoto ? `http://localhost:3002/${doctor.profilePhoto}` : '/images/default-doctor.svg'} 
+                  alt="Profile" 
                   className="profile-photo"
                   onError={(e) => {
+                    e.target.onerror = null; 
                     e.target.src = '/images/default-doctor.svg';
                   }}
                 />
               </div>
               <div className="profile-details">
-                <p><strong>Name:</strong> {doctorData.name || 'N/A'}</p>
-                <p><strong>Email:</strong> {doctorData.email || 'N/A'}</p>
-                <p><strong>Mobile:</strong> {doctorData.mobile || 'N/A'}</p>
-                <p><strong>Address:</strong> {doctorData.address || 'N/A'}</p>
-                <p><strong>Specialization:</strong> {doctorData.specialization || 'N/A'}</p>
-                <p><strong>College:</strong> {doctorData.college || 'N/A'}</p>
-                <p><strong>Year of Passing:</strong> {doctorData.yearOfPassing || 'N/A'}</p>
-                <p><strong>Location:</strong> {doctorData.location || 'N/A'}</p>
-                <p><strong>Online Status:</strong> {doctorData.onlineStatus || 'N/A'}</p>
-                <p><strong>Consultation Fee:</strong> ₹{doctorData.consultationFee || 'N/A'}</p>
-                <p><strong>Registration Number:</strong> {doctorData.registrationNumber || 'N/A'}</p>
-                {doctorData.ssn && <p><strong>SSN:</strong> {doctorData.ssn || 'N/A'}</p>}
+                <p><strong>Name:</strong> {doctor.name || 'N/A'}</p>
+                <p><strong>Email:</strong> {doctor.email || 'N/A'}</p>
+                <p><strong>Mobile:</strong> {doctor.mobile || 'N/A'}</p>
+                <p><strong>Address:</strong> {doctor.address || 'N/A'}</p>
+                <p><strong>Specialization:</strong> {doctor.specialization || 'N/A'}</p>
+                <p><strong>College:</strong> {doctor.college || 'N/A'}</p>
+                <p><strong>Year of Passing:</strong> {doctor.yearOfPassing || 'N/A'}</p>
+                <p><strong>Location:</strong> {doctor.location || 'N/A'}</p>
+                <p><strong>Online Status:</strong> {doctor.onlineStatus || 'N/A'}</p>
+                <p><strong>Consultation Fee:</strong> ₹{doctor.consultationFee || 'N/A'}</p>
+                <p><strong>Registration Number:</strong> {doctor.registrationNumber || 'N/A'}</p>
+                {doctor.ssn && <p><strong>SSN:</strong> {doctor.ssn || 'N/A'}</p>}
               </div>
             </>
           ) : (
-            <div className="error-message">Doctor data not available.</div>
+            <div className="error-message">Doctor data not available. Please try logging in again.</div>
           )}
         </div>
 
@@ -616,7 +593,7 @@ const DoctorProfile = () => {
         </div>
 
         {/* Action Buttons */}
-        {doctorData && (
+        {doctor && (
           <div className="action-buttons">
             <Link to="/doctor/edit-profile" className="btn">Edit Profile</Link>
             <Link to="/doctor/dashboard" className="btn">Go to Dashboard</Link>

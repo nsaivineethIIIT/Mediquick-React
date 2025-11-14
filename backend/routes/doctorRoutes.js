@@ -8,7 +8,8 @@ router.get('/api/daily-earnings', doctorController.getDailyEarnings); // Get dai
 router.get('/form', doctorController.getForm); // Get form
 router.post('/signup', upload.single('document'), doctorController.signup); // Doctor signup
 router.post('/login', doctorController.login); // Doctor login
-router.get('/profile', doctorController.getProfile); // Get doctor profile
+router.get('/profile', doctorController.getProfile); // Get doctor profile (handles both page render and API call)
+router.get('/api/profile', doctorController.getDoctorDetails); // API endpoint for profile data
 router.get('/edit-profile', doctorController.getEditProfile); // Get edit profile form
 router.post('/update-profile', uploadProfile.single('profilePhoto'), doctorController.updateProfile); // Update doctor profile (accept profilePhoto)
 // Quick remove avatar
