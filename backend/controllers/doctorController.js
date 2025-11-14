@@ -243,28 +243,32 @@ exports.getProfile = async (req, res) => {
         console.log('Session doctorId:', req.session.doctorId);
 
         if (!req.session.doctorId) {
-            console.log('Redirecting to /doctor_form due to missing session');
+            console.log('No doctorId in session');
+            // For API requests, return JSON, otherwise redirect
+            if (req.headers.accept && req.headers.accept.includes('application/json')) {
+                return res.status(401).json({ success: false, message: 'Unauthorized: Please log in.' });
+            }
             return res.redirect('/doctor/form?error=login_required');
         }
 
         if (!mongoose.Types.ObjectId.isValid(req.session.doctorId)) {
             console.log('Invalid doctorId format:', req.session.doctorId);
+            if (req.headers.accept && req.headers.accept.includes('application/json')) {
+                return res.status(400).json({ success: false, message: 'Invalid session data.' });
+            }
             return res.status(400).render('error', {
                 message: 'Invalid session data',
                 redirect: '/doctor/form'
             });
         }
 
-        if (mongoose.connection.readyState !== 1) {
-            throw new Error('Database not connected');
-        }
-
         const doctor = await Doctor.findById(req.session.doctorId).lean();
-        console.log('Doctor found:', doctor);
-        console.log('Doctor profilePhoto:', doctor.profilePhoto);
-
+        
         if (!doctor) {
-            console.log('Doctor not found, rendering error view');
+            console.log('Doctor not found');
+            if (req.headers.accept && req.headers.accept.includes('application/json')) {
+                return res.status(404).json({ success: false, message: 'Doctor not found.' });
+            }
             return res.status(404).render('error', {
                 message: 'Doctor not found',
                 redirect: '/doctor/form'
@@ -272,28 +276,39 @@ exports.getProfile = async (req, res) => {
         }
 
         if (!doctor.isApproved) {
-            console.log('Doctor not approved, rendering error view');
+            console.log('Doctor not approved');
+            if (req.headers.accept && req.headers.accept.includes('application/json')) {
+                return res.status(403).json({ success: false, message: 'Your account is not yet approved.' });
+            }
             return res.status(401).render('error', {
                 message: 'Not approved yet. Wait for employee confirmation.',
                 redirect: '/doctor/form'
             });
         }
 
-        // Get current date and time for filtering appointments
-        const now = new Date();
-        const currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Start of today
-        const currentTime = now.getHours() * 100 + now.getMinutes(); // HHMM format
+        // If the request is for JSON (from our context), send only doctor data
+        if (req.headers.accept && req.headers.accept.includes('application/json')) {
+            const safeDoctor = { ...doctor };
+            delete safeDoctor.password;
+            delete safeDoctor.securityCode;
+            return res.json({ success: true, doctor: safeDoctor });
+        }
 
-        // Fetch upcoming appointments (future dates or today's appointments after current time)
+        // --- Existing logic for rendering the page with appointments ---
+
+        const now = new Date();
+        const currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const currentTime = now.getHours() * 100 + now.getMinutes();
+
         const upcomingAppointments = await Appointment.find({
             doctorId: req.session.doctorId,
-            isBlockedSlot: { $ne: true }, // Exclude blocked slots
+            isBlockedSlot: { $ne: true },
             $or: [
-                { date: { $gt: currentDate } }, // Future dates
+                { date: { $gt: currentDate } },
                 {
                     date: {
                         $gte: currentDate,
-                        $lt: new Date(currentDate.getTime() + 24 * 60 * 60 * 1000) // Today
+                        $lt: new Date(currentDate.getTime() + 24 * 60 * 60 * 1000)
                     },
                     $expr: {
                         $gt: [
@@ -308,21 +323,21 @@ exports.getProfile = async (req, res) => {
                     }
                 }
             ],
-            status: { $in: ['pending', 'confirmed'] } // Only pending or confirmed
+            status: { $in: ['pending', 'confirmed'] }
         })
-            .populate('patientId', 'name')
-            .sort({ date: 1, time: 1 })
-            .lean();
-        // Fetch previous appointments (past dates, today before current time, or completed/cancelled)
+        .populate('patientId', 'name')
+        .sort({ date: 1, time: 1 })
+        .lean();
+
         const previousAppointments = await Appointment.find({
             doctorId: req.session.doctorId,
-            isBlockedSlot: { $ne: true }, // Exclude blocked slots
+            isBlockedSlot: { $ne: true },
             $or: [
-                { date: { $lt: currentDate } }, // Past dates
+                { date: { $lt: currentDate } },
                 {
                     date: {
                         $gte: currentDate,
-                        $lt: new Date(currentDate.getTime() + 24 * 60 * 60 * 1000) // Today
+                        $lt: new Date(currentDate.getTime() + 24 * 60 * 60 * 1000)
                     },
                     $expr: {
                         $lte: [
@@ -335,26 +350,25 @@ exports.getProfile = async (req, res) => {
                             currentTime
                         ]
                     },
-                    status: { $nin: ['completed', 'cancelled'] } // Only pending or confirmed for today before current time
+                    status: { $nin: ['completed', 'cancelled'] }
                 },
                 {
                     date: {
                         $gte: currentDate,
-                        $lt: new Date(currentDate.getTime() + 24 * 60 * 60 * 1000) // Today
+                        $lt: new Date(currentDate.getTime() + 24 * 60 * 60 * 1000)
                     },
-                    status: { $in: ['completed', 'cancelled'] } // Completed or cancelled on today
+                    status: { $in: ['completed', 'cancelled'] }
                 },
                 {
-                    date: { $lt: currentDate }, // Past dates with completed/cancelled status
+                    date: { $lt: currentDate },
                     status: { $in: ['completed', 'cancelled'] }
                 }
             ]
         })
-            .populate('patientId', 'name')
-            .sort({ date: -1, time: -1 })
-            .lean();
+        .populate('patientId', 'name')
+        .sort({ date: -1, time: -1 })
+        .lean();
 
-        // Format appointments for the view
         const formatAppointment = (appt) => {
             const date = new Date(appt.date);
             const formattedDate = date.toLocaleDateString('en-US', {
@@ -365,7 +379,7 @@ exports.getProfile = async (req, res) => {
 
             return {
                 id: appt._id,
-                patientId: appt.patientId || { name: 'Unknown Patient' }, // Fallback for missing patientId
+                patientId: appt.patientId || { name: 'Unknown Patient' },
                 date: formattedDate,
                 time: appt.time,
                 type: appt.type,
@@ -373,40 +387,29 @@ exports.getProfile = async (req, res) => {
                 notes: appt.notes
             };
         };
-        const isJson = req.query.format === 'json' || req.headers.accept === 'application/json';
-        if (isJson) {
-            const safeDoctor = { ...doctor };
-            delete safeDoctor.password;
-            delete safeDoctor.securityCode;
-            res.json({
-                doctor: safeDoctor,
-                upcomingAppointments,
-                previousAppointments
-            });
-        }
-        else{
-            console.log('Rendering doctor_profile view with doctor:', doctor);
-            res.render('doctor_profile', {
+
+        console.log('Rendering doctor_profile view with doctor and appointments');
+        res.render('doctor_profile', {
             doctor,
             upcomingAppointments: upcomingAppointments.map(formatAppointment),
             previousAppointments: previousAppointments.map(formatAppointment),
             title: 'Doctor Profile'
         });
-        }
+
     } catch (err) {
        console.error("Error fetching doctor profile:", err.message);
-        if (req.query.format === 'json' || req.headers.accept === 'application/json') {
-            res.status(500).json({
-                error: 'Internal server error',
+       if (req.headers.accept && req.headers.accept.includes('application/json')) {
+            return res.status(500).json({
+                success: false,
+                message: 'Internal server error',
                 details: process.env.NODE_ENV === 'development' ? err.message : undefined
             });
-        } else {
-            res.status(500).render('error', {
-                message: 'Internal server error',
-                details: process.env.NODE_ENV === 'development' ? err.message : undefined,
-                redirect: '/'
-            });
         }
+        res.status(500).render('error', {
+            message: 'Internal server error',
+            details: process.env.NODE_ENV === 'development' ? err.message : undefined,
+            redirect: '/'
+        });
     }      
 };
 
@@ -950,24 +953,26 @@ exports.getDoctorAppiontments = async (req, res) => {
 exports.getDoctorDetails = async (req, res) => {
     try {
         if (!req.session.doctorId) {
-            return res.status(401).json({ error: 'Unauthorized' });
+            return res.status(401).json({ success: false, message: 'Unauthorized: Please log in.' });
         }
 
         const doctor = await Doctor.findById(req.session.doctorId).lean();
         
         if (!doctor) {
-            return res.status(404).json({ error: 'Doctor not found' });
+            return res.status(404).json({ success: false, message: 'Doctor not found.' });
         }
 
         // Remove sensitive data
-        delete doctor.password;
-        delete doctor.securityCode;
+        const safeDoctor = { ...doctor };
+        delete safeDoctor.password;
+        delete safeDoctor.securityCode;
 
-        res.json(doctor);
+        res.json({ success: true, doctor: safeDoctor });
     } catch (err) {
         console.error("Error fetching doctor profile:", err.message);
         res.status(500).json({
-            error: 'Internal server error',
+            success: false,
+            message: 'Internal server error',
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
         });
     }
