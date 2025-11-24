@@ -1,127 +1,91 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
 import '../../assets/css/PatientForm.css';
+
+// Yup validation schemas
+const loginSchema = yup.object().shape({
+  email: yup
+    .string()
+    .required('Email is required')
+    .matches(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please enter a valid email address'),
+  password: yup
+    .string()
+    .required('Password is required')
+    .min(6, 'Password must be at least 6 characters long')
+    .matches(/^(?=.*[A-Za-z])(?=.*\d)/, 'Password must contain at least one letter and one number')
+});
+
+const signupSchema = yup.object().shape({
+  name: yup
+    .string()
+    .required('Name is required')
+    .min(2, 'Name must be at least 2 characters long')
+    .max(500, 'Name must not exceed 500 characters')
+    .matches(/^(?=.*[A-Za-z])[A-Za-z0-9\s\-'.]+$/, 'Name must contain at least one letter and can include letters, numbers, spaces, hyphens, apostrophes, and periods'),
+  email: yup
+    .string()
+    .required('Email is required')
+    .matches(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please enter a valid email address'),
+  mobile: yup
+    .string()
+    .required('Mobile number is required')
+    .matches(/^[0-9]{10}$/, 'Mobile number must be exactly 10 digits'),
+  address: yup
+    .string()
+    .required('Address is required')
+    .min(5, 'Address must be at least 5 characters long'),
+  password: yup
+    .string()
+    .required('Password is required')
+    .min(6, 'Password must be at least 6 characters long')
+    .matches(/^(?=.*[A-Za-z])(?=.*\d)/, 'Password must contain at least one letter and one number')
+});
 
 const PatientForm = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    mobile: '',
-    address: '',
-    password: ''
-  });
-  const [errors, setErrors] = useState({});
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  const toggleForm = () => {
-    setIsLogin(!isLogin);
-    setErrors({});
-    setMessage({ type: '', text: '' });
-    setFormData({
+  // Initialize react-hook-form with yup resolver
+  const loginForm = useForm({
+    resolver: yupResolver(loginSchema),
+    mode: 'onChange',
+    defaultValues: {
+      email: '',
+      password: ''
+    }
+  });
+
+  const signupForm = useForm({
+    resolver: yupResolver(signupSchema),
+    mode: 'onChange',
+    defaultValues: {
       name: '',
       email: '',
       mobile: '',
       address: '',
       password: ''
-    });
+    }
+  });
+
+  // Use the appropriate form based on isLogin state
+  const { register, handleSubmit, formState: { errors }, reset } = isLogin ? loginForm : signupForm;
+
+  const toggleForm = () => {
+    setIsLogin(!isLogin);
+    setMessage({ type: '', text: '' });
+    loginForm.reset();
+    signupForm.reset();
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
-  };
-
-  const validateName = (name) => {
-    const nameRegex = /^[A-Za-z\s]+$/;
-    if (!name || name.length < 2 || name.length > 500 || !nameRegex.test(name)) {
-      return 'Name must be 2-500 characters long and contain only letters and spaces';
-    }
-    return '';
-  };
-
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email || !emailRegex.test(email)) {
-      return 'Please enter a valid email address';
-    }
-    return '';
-  };
-
-  const validateMobile = (mobile) => {
-    const mobileRegex = /^[0-9]{10}$/;
-    if (!mobile || !mobileRegex.test(mobile)) {
-      return 'Mobile number must be exactly 10 digits';
-    }
-    return '';
-  };
-
-  const validateAddress = (address) => {
-    if (!address || address.length < 5) {
-      return 'Address must be at least 5 characters long';
-    }
-    return '';
-  };
-
-  const validatePassword = (password) => {
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
-    if (!password || !passwordRegex.test(password)) {
-      return 'Password must be at least 6 characters long and contain at least one letter and one number';
-    }
-    return '';
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (isLogin) {
-      const emailError = validateEmail(formData.email);
-      const passwordError = validatePassword(formData.password);
-      
-      if (emailError) newErrors.email = emailError;
-      if (passwordError) newErrors.password = passwordError;
-    } else {
-      const nameError = validateName(formData.name);
-      const emailError = validateEmail(formData.email);
-      const mobileError = validateMobile(formData.mobile);
-      const addressError = validateAddress(formData.address);
-      const passwordError = validatePassword(formData.password);
-
-      if (nameError) newErrors.name = nameError;
-      if (emailError) newErrors.email = emailError;
-      if (mobileError) newErrors.mobile = mobileError;
-      if (addressError) newErrors.address = addressError;
-      if (passwordError) newErrors.password = passwordError;
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
-      setMessage({ type: 'error', text: 'Please correct the errors in the form' });
-      return;
-    }
-
+  const onSubmit = async (data) => {
     try {
       const endpoint = isLogin ? '/patient/login' : '/patient/signup';
       const payload = isLogin 
-        ? { email: formData.email, password: formData.password }
-        : formData;
+        ? { email: data.email, password: data.password }
+        : data;
 
       const response = await fetch(`http://localhost:3002${endpoint}`, {
         method: 'POST',
@@ -145,13 +109,7 @@ const PatientForm = () => {
           setMessage({ type: 'success', text: 'Registration successful! Please login with your credentials.' });
           setTimeout(() => {
             setIsLogin(true);
-            setFormData({
-              name: '',
-              email: '',
-              mobile: '',
-              address: '',
-              password: ''
-            });
+            signupForm.reset();
           }, 2000);
         }
       } else {
@@ -203,28 +161,22 @@ const PatientForm = () => {
         )}
 
         {isLogin ? (
-          <form id="loginForm" className="profile-form" onSubmit={handleSubmit}>
+          <form id="loginForm" className="profile-form" onSubmit={handleSubmit(onSubmit)}>
             <input
               type="email"
-              name="email"
               placeholder="Email"
-              value={formData.email}
-              onChange={handleChange}
+              {...register('email')}
               className={errors.email ? 'error-input' : ''}
-              required
             />
-            {errors.email && <span className="error-text">{errors.email}</span>}
+            {errors.email && <span className="error-text">{errors.email.message}</span>}
 
             <input
               type="password"
-              name="password"
               placeholder="Password"
-              value={formData.password}
-              onChange={handleChange}
+              {...register('password')}
               className={errors.password ? 'error-input' : ''}
-              required
             />
-            {errors.password && <span className="error-text">{errors.password}</span>}
+            {errors.password && <span className="error-text">{errors.password.message}</span>}
 
             <button type="submit" className="button">Login</button>
             <p className="toggle" onClick={toggleForm}>
@@ -232,62 +184,46 @@ const PatientForm = () => {
             </p>
           </form>
         ) : (
-          <form id="signupForm" className="profile-form" onSubmit={handleSubmit}>
+          <form id="signupForm" className="profile-form" onSubmit={handleSubmit(onSubmit)}>
             <input
               type="text"
-              name="name"
               placeholder="Full Name"
-              value={formData.name}
-              onChange={handleChange}
+              {...register('name')}
               className={errors.name ? 'error-input' : ''}
-              required
             />
-            {errors.name && <span className="error-text">{errors.name}</span>}
+            {errors.name && <span className="error-text">{errors.name.message}</span>}
 
             <input
               type="email"
-              name="email"
               placeholder="Email"
-              value={formData.email}
-              onChange={handleChange}
+              {...register('email')}
               className={errors.email ? 'error-input' : ''}
-              required
             />
-            {errors.email && <span className="error-text">{errors.email}</span>}
+            {errors.email && <span className="error-text">{errors.email.message}</span>}
 
             <input
               type="tel"
-              name="mobile"
               placeholder="Mobile"
-              value={formData.mobile}
-              onChange={handleChange}
+              {...register('mobile')}
               className={errors.mobile ? 'error-input' : ''}
-              required
             />
-            {errors.mobile && <span className="error-text">{errors.mobile}</span>}
+            {errors.mobile && <span className="error-text">{errors.mobile.message}</span>}
 
             <input
               type="text"
-              name="address"
               placeholder="Address"
-              value={formData.address}
-              onChange={handleChange}
+              {...register('address')}
               className={errors.address ? 'error-input' : ''}
-              required
             />
-            {errors.address && <span className="error-text">{errors.address}</span>}
+            {errors.address && <span className="error-text">{errors.address.message}</span>}
 
             <input
               type="password"
-              name="password"
               placeholder="Create your password"
-              value={formData.password}
-              onChange={handleChange}
+              {...register('password')}
               className={errors.password ? 'error-input' : ''}
-              minLength="6"
-              required
             />
-            {errors.password && <span className="error-text">{errors.password}</span>}
+            {errors.password && <span className="error-text">{errors.password.message}</span>}
 
             <button type="submit" className="button">Sign Up</button>
             <p className="toggle" onClick={toggleForm}>
