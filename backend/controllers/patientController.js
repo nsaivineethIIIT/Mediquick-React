@@ -14,9 +14,9 @@ const fs = require('fs');
 const path = require('path');
 
 exports.signup = async (req, res) => {
-    const { name, email, mobile, address, password } = req.body;
+    const { name, email, mobile, address, password, dateOfBirth, gender } = req.body;
 
-    console.log('Received patient signup request:', { name, email, mobile, address, password: '[REDACTED]' });
+    console.log('Received patient signup request:', { name, email, mobile, address, dateOfBirth, gender, password: '[REDACTED]' });
 
     try {
         // Validate input fields
@@ -71,6 +71,15 @@ exports.signup = async (req, res) => {
                 details: 'Password must be at least 6 characters long'
             });
         }
+        
+        // Validate optional fields
+        if (gender && !['male', 'female', 'other'].includes(gender.toLowerCase())) {
+            console.log('Validation failed: Invalid gender', { gender });
+            return res.status(400).json({
+                error: 'Invalid gender',
+                details: 'Gender must be male, female, or other'
+            });
+        }
 
         // Check for existing patient
         const existingPatient = await Patient.findOne({ email });
@@ -88,7 +97,9 @@ exports.signup = async (req, res) => {
             email: email.trim().toLowerCase(),
             mobile: mobile.trim(),
             address: address.trim(),
-            password: password
+            password: password,
+            ...(dateOfBirth && { dateOfBirth }),
+            ...(gender && { gender: gender.toLowerCase() })
         });
 
         await newPatient.save();
@@ -211,8 +222,6 @@ exports.getProfile = async (req, res) => {
 // New API endpoint to fetch patient profile data
 exports.getProfileData = async (req, res) => {
     try {
-        console.log('Session ID:', req.session.patientId); // Debug log
-        
         if (!req.session.patientId) {
             return res.status(401).json({
                 success: false,
@@ -229,7 +238,6 @@ exports.getProfileData = async (req, res) => {
         }
 
         const patient = await Patient.findById(req.session.patientId).lean();
-        console.log('Patient found:', patient);
 
         if (!patient) {
             return res.status(404).json({
@@ -246,12 +254,12 @@ exports.getProfileData = async (req, res) => {
                 email: patient.email,
                 mobile: patient.mobile,
                 address: patient.address,
-                profilePhoto: patient.profilePhoto
+                profilePhoto: patient.profilePhoto,
+                dateOfBirth: patient.dateOfBirth,
+                gender: patient.gender
             }
         };
         
-        console.log('Profile data being sent:', profileData);
-
         res.status(200).json(profileData);
     } catch (err) {
         console.error("Error fetching patient profile data:", err.message);
@@ -594,12 +602,20 @@ exports.updateProfile = async (req, res) => {
             return res.status(400).json({ error: 'Invalid session data' });
         }
 
-    const { name, email, mobile, address, removeProfilePhoto } = req.body;
+    const { name, email, mobile, address, dateOfBirth, gender, removeProfilePhoto } = req.body;
 
         if (!name || !email || !mobile || !address) {
             return res.status(400).json({
                 error: 'Validation Error',
                 message: 'All fields are required'
+            });
+        }
+        
+        // Validate optional fields
+        if (gender && !['male', 'female', 'other'].includes(gender.toLowerCase())) {
+            return res.status(400).json({
+                error: 'Validation Error',
+                message: 'Invalid gender value'
             });
         }
 
@@ -643,6 +659,14 @@ exports.updateProfile = async (req, res) => {
 
         const patientBefore = await Patient.findById(req.session.patientId).lean();
         const updateData = { name, email, mobile, address };
+        
+        // Add optional fields if provided
+        if (dateOfBirth) {
+            updateData.dateOfBirth = dateOfBirth;
+        }
+        if (gender) {
+            updateData.gender = gender.toLowerCase();
+        }
 
         // Handle profile photo upload (file saved by uploadProfile middleware into public/uploads/profiles)
         if (req.file && req.file.filename) {

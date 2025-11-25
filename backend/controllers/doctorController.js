@@ -12,14 +12,15 @@ exports.signup = async (req, res) => {
     const {
         name, email, mobile, address, registrationNumber,
         specialization, college, yearOfPassing, location,
-        onlineStatus, securityCode, password, consultationFee
+        onlineStatus, securityCode, password, consultationFee,
+        dateOfBirth, gender
     } = req.body;
 
     console.log('Received doctor signup request:', {
         name, email, mobile, address, registrationNumber,
         specialization, college, yearOfPassing, location,
         onlineStatus, securityCode, password: '[REDACTED]',
-        consultationFee, document: req.file ? req.file.filename : 'None'
+        consultationFee, dateOfBirth, gender, document: req.file ? req.file.filename : 'None'
     });
 
     try {
@@ -108,6 +109,15 @@ exports.signup = async (req, res) => {
                 details: 'Consultation fee must be a non-negative number'
             });
         }
+        
+        // Validate optional fields
+        if (gender && !['male', 'female', 'other'].includes(gender.toLowerCase())) {
+            console.log('Validation failed: Invalid gender', { gender });
+            return res.status(400).json({
+                error: 'Invalid gender',
+                details: 'Gender must be male, female, or other'
+            });
+        }
 
         // Check for existing doctor
         const existingDoctor = await Doctor.findOne({
@@ -136,7 +146,9 @@ exports.signup = async (req, res) => {
             securityCode,
             password,
             documentPath: req.file ? req.file.path : null,
-            consultationFee: fee
+            consultationFee: fee,
+            ...(dateOfBirth && { dateOfBirth }),
+            ...(gender && { gender: gender.toLowerCase() })
         });
 
         await newDoctor.save();
@@ -739,7 +751,7 @@ exports.updateProfile = async (req, res) => {
             return res.status(400).json({ error: 'Invalid session data' });
         }
 
-    const { name, email, mobile, address, specialization, college, yearOfPassing, location, onlineStatus, consultationFee, removeProfilePhoto } = req.body;
+    const { name, email, mobile, address, specialization, college, yearOfPassing, location, onlineStatus, consultationFee, dateOfBirth, gender, removeProfilePhoto } = req.body;
 
         if (!name || !email || !mobile || !address || !specialization || !college || !yearOfPassing || !location || !onlineStatus || !consultationFee) {
             console.log('Validation failed: Missing required fields');
@@ -749,6 +761,12 @@ exports.updateProfile = async (req, res) => {
         if (isNaN(consultationFee) || consultationFee < 0) {
             console.log('Validation failed: Invalid consultation fee:', consultationFee);
             return res.status(400).json({ error: 'Consultation fee must be a valid non-negative number' });
+        }
+        
+        // Validate optional fields
+        if (gender && !['male', 'female', 'other'].includes(gender.toLowerCase())) {
+            console.log('Validation failed: Invalid gender value:', gender);
+            return res.status(400).json({ error: 'Invalid gender value' });
         }
         const ifemailExists = await checkEmailExists(email, req.session.doctorId);
         if (ifemailExists) {
@@ -774,6 +792,14 @@ exports.updateProfile = async (req, res) => {
 
         const doctorBefore = await Doctor.findById(req.session.doctorId).lean();
         const updateData = { name, email, mobile, address, specialization, college, yearOfPassing, location, onlineStatus, consultationFee };
+        
+        // Add optional fields if provided
+        if (dateOfBirth) {
+            updateData.dateOfBirth = dateOfBirth;
+        }
+        if (gender) {
+            updateData.gender = gender.toLowerCase();
+        }
 
         // handle profile photo file if uploaded (uploadProfile stores in public/uploads/profiles)
         if (req.file && req.file.filename) {
