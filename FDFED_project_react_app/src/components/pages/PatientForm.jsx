@@ -33,6 +33,22 @@ const signupSchema = yup.object().shape({
     .string()
     .required('Mobile number is required')
     .matches(/^[0-9]{10}$/, 'Mobile number must be exactly 10 digits'),
+  dateOfBirth: yup
+    .date()
+    .nullable()
+    .max(new Date(), 'Date of birth cannot be in the future')
+    .test('age', 'You must be at least 1 year old', function(value) {
+      if (!value) return true;
+      const today = new Date();
+      const birthDate = new Date(value);
+      const age = today.getFullYear() - birthDate.getFullYear();
+      return age >= 1;
+    })
+    .typeError('Please enter a valid date'),
+  gender: yup
+    .string()
+    .nullable()
+    .oneOf(['male', 'female', 'other', null, ''], 'Please select a valid gender'),
   address: yup
     .string()
     .required('Address is required')
@@ -65,6 +81,8 @@ const PatientForm = () => {
       name: '',
       email: '',
       mobile: '',
+      dateOfBirth: '',
+      gender: '',
       address: '',
       password: ''
     }
@@ -208,6 +226,32 @@ const PatientForm = () => {
               className={errors.mobile ? 'error-input' : ''}
             />
             {errors.mobile && <span className="error-text">{errors.mobile.message}</span>}
+
+            <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+              <label style={{ fontSize: '1.4rem', color: '#666', marginBottom: '0.5rem' }}>Date of Birth (Optional)</label>
+              <input
+                type="date"
+                {...register('dateOfBirth')}
+                className={errors.dateOfBirth ? 'error-input' : ''}
+                max={new Date().toISOString().split('T')[0]}
+              />
+              {errors.dateOfBirth && <span className="error-text">{errors.dateOfBirth.message}</span>}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+              <label style={{ fontSize: '1.4rem', color: '#666', marginBottom: '0.5rem' }}>Gender (Optional)</label>
+              <select
+                {...register('gender')}
+                className={errors.gender ? 'error-input' : ''}
+                style={{ padding: '1rem', fontSize: '1.4rem', borderRadius: '0.5rem', border: '1px solid #ddd' }}
+              >
+                <option value="">Select Gender</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+              {errors.gender && <span className="error-text">{errors.gender.message}</span>}
+            </div>
 
             <input
               type="text"
