@@ -1,203 +1,201 @@
 import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
 import '../../assets/css/DoctorForm.css';
+
+// Yup validation schemas
+const loginSchema = yup.object().shape({
+  email: yup
+    .string()
+    .required('Email is required')
+    .matches(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please enter a valid email address'),
+  password: yup
+    .string()
+    .required('Password is required')
+    .min(6, 'Password must be at least 6 characters')
+    .matches(/^(?=.*[A-Za-z])(?=.*\d)/, 'Password must contain at least one letter and one number'),
+  securityCode: yup
+    .string()
+    .required('Security code is required')
+});
+
+const signupSchema = yup.object().shape({
+  name: yup
+    .string()
+    .required('Name is required')
+    .min(2, 'Name must be at least 2 characters')
+    .max(500, 'Name must not exceed 500 characters')
+    .matches(/^(?=.*[A-Za-z])[A-Za-z0-9\s\-'.]+$/, 'Name must contain at least one letter and can include letters, numbers, spaces, hyphens, apostrophes, and periods'),
+  signupEmail: yup
+    .string()
+    .required('Email is required')
+    .matches(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please enter a valid email address'),
+  mobile: yup
+    .string()
+    .required('Mobile number is required')
+    .matches(/^\d{10}$/, 'Mobile number must be exactly 10 digits'),
+  dateOfBirth: yup
+    .date()
+    .nullable()
+    .max(new Date(), 'Date of birth cannot be in the future')
+    .test('age', 'Doctor must be at least 21 years old', function(value) {
+      if (!value) return true;
+      const today = new Date();
+      const birthDate = new Date(value);
+      const age = today.getFullYear() - birthDate.getFullYear();
+      return age >= 21;
+    })
+    .typeError('Please enter a valid date'),
+  gender: yup
+    .string()
+    .nullable()
+    .oneOf(['male', 'female', 'other', null, ''], 'Please select a valid gender'),
+  address: yup
+    .string()
+    .required('Address is required')
+    .min(5, 'Address must be at least 5 characters'),
+  registrationNumber: yup
+    .string()
+    .required('Registration number is required')
+    .matches(/^[a-zA-Z0-9]{6,20}$/, 'Registration number must be 6-20 alphanumeric characters'),
+  specialization: yup
+    .string()
+    .required('Specialization is required'),
+  college: yup
+    .string()
+    .required('College is required'),
+  yearOfPassing: yup
+    .number()
+    .required('Year of passing is required')
+    .min(1970, 'Year must be 1970 or later')
+    .max(2025, 'Year cannot exceed 2025')
+    .typeError('Year of passing must be a number'),
+  location: yup
+    .string()
+    .required('Location is required'),
+  onlineStatus: yup
+    .string()
+    .required('Online status is required'),
+  consultationFee: yup
+    .number()
+    .required('Consultation fee is required')
+    .min(0, 'Consultation fee must be a positive number')
+    .typeError('Consultation fee must be a number'),
+  signupSecurityCode: yup
+    .string()
+    .required('Security code is required'),
+  signupPassword: yup
+    .string()
+    .required('Password is required')
+    .min(6, 'Password must be at least 6 characters')
+    .matches(/^(?=.*[A-Za-z])(?=.*\d)/, 'Password must contain at least one letter and one number'),
+  document: yup
+    .mixed()
+    .required('Document is required')
+    .test('fileType', 'Only PDF, DOC, and DOCX files are allowed', (value) => {
+      if (!value || !value[0]) return false;
+      const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      return validTypes.includes(value[0].type);
+    })
+});
 
 const DoctorForm = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [formData, setFormData] = useState({
-    // Login form data
-    email: '',
-    password: '',
-    securityCode: '',
-    
-    // Signup form data
-    name: '',
-    signupEmail: '',
-    mobile: '',
-    address: '',
-    registrationNumber: '',
-    specialization: '',
-    college: '',
-    yearOfPassing: '',
-    location: '',
-    onlineStatus: 'Online',
-    consultationFee: '',
-    signupSecurityCode: '',
-    signupPassword: '',
-    document: null
-  });
-  
-  const [errors, setErrors] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const handleInputChange = (e) => {
-    const { name, value, type, files } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'file' ? files[0] : value
-    }));
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
+  // Initialize react-hook-form with yup resolver
+  const loginForm = useForm({
+    resolver: yupResolver(loginSchema),
+    mode: 'onChange',
+    defaultValues: {
+      email: '',
+      password: '',
+      securityCode: ''
     }
-  };
+  });
 
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
+  const signupForm = useForm({
+    resolver: yupResolver(signupSchema),
+    mode: 'onChange',
+    defaultValues: {
+      name: '',
+      signupEmail: '',
+      mobile: '',
+      dateOfBirth: '',
+      gender: '',
+      address: '',
+      registrationNumber: '',
+      specialization: '',
+      college: '',
+      yearOfPassing: '',
+      location: '',
+      onlineStatus: 'Online',
+      consultationFee: '',
+      signupSecurityCode: '',
+      signupPassword: '',
+      document: null
+    }
+  });
 
-  const validateMobile = (mobile) => {
-    const mobileRegex = /^\d{10}$/;
-    return mobileRegex.test(mobile);
-  };
+  // Use the appropriate form based on isLogin state
+  const { register, handleSubmit, formState: { errors }, reset } = isLogin ? loginForm : signupForm;
 
-  const validatePassword = (password) => {
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
-    return passwordRegex.test(password);
-  };
-
-  const validateName = (name) => {
-    return name.length >= 2 && name.length <= 500;
-  };
-
-  const validateAddress = (address) => {
-    return address.length >= 5;
-  };
-
-  const validateRegistrationNumber = (regNum) => {
-    const regNumRegex = /^[a-zA-Z0-9]{6,20}$/;
-    return regNumRegex.test(regNum);
-  };
-
-  const validateLoginForm = () => {
-    const newErrors = {};
-    
-    if (!validateEmail(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-    
-    if (!validatePassword(formData.password)) {
-      newErrors.password = 'Password must be at least 6 characters with at least one letter and one number';
-    }
-    
-    if (!formData.securityCode) {
-      newErrors.securityCode = 'Security code is required';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const validateSignupForm = () => {
-    const newErrors = {};
-    
-    if (!validateName(formData.name)) {
-      newErrors.name = 'Name must be between 2 and 500 characters';
-    }
-    
-    if (!validateEmail(formData.signupEmail)) {
-      newErrors.signupEmail = 'Please enter a valid email address';
-    }
-    
-    if (!validateMobile(formData.mobile)) {
-      newErrors.mobile = 'Mobile number must be 10 digits';
-    }
-    
-    if (!validateAddress(formData.address)) {
-      newErrors.address = 'Address must be at least 5 characters';
-    }
-    
-    if (!validateRegistrationNumber(formData.registrationNumber)) {
-      newErrors.registrationNumber = 'Registration number must be 6-20 alphanumeric characters';
-    }
-    
-    if (!validatePassword(formData.signupPassword)) {
-      newErrors.signupPassword = 'Password must be at least 6 characters with at least one letter and one number';
-    }
-    
-    if (!formData.document) {
-      newErrors.document = 'Document is required';
-    }
-    
-    if (!formData.signupSecurityCode) {
-      newErrors.signupSecurityCode = 'Security code is required';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // In DoctorForm.jsx - Update the handleLogin function
-const handleLogin = async (e) => {
-  e.preventDefault();
-  setErrorMessage('');
-  setSuccessMessage('');
-  
-  if (!validateLoginForm()) {
-    return;
-  }
-  
-  try {
-    const response = await fetch('http://localhost:3002/doctor/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json', // Change to JSON
-      },
-      credentials: 'include', // This is crucial for cookies
-      body: JSON.stringify({
-        email: formData.email,
-        password: formData.password,
-        securityCode: formData.securityCode
-      })
-    });
-    
-    const data = await response.json();
-    
-    if (response.ok) {
-      setSuccessMessage('Login successful! Redirecting...');
-      // Don't store in localStorage - session is handled by cookies
-      setTimeout(() => {
-        window.location.href = '/doctor/dashboard';
-      }, 1000);
-    } else {
-      setErrorMessage(data.error + (data.details ? `: ${data.details}` : ''));
-    }
-  } catch (error) {
-    setErrorMessage('Network error. Please check your connection and try again.');
-    console.error('Login error:', error);
-  }
-};
-
-  const handleSignup = async (e) => {
-    e.preventDefault();
+  const onLoginSubmit = async (data) => {
     setErrorMessage('');
     setSuccessMessage('');
     
-    if (!validateSignupForm()) {
-      return;
+    try {
+      const response = await fetch('http://localhost:3002/doctor/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+          securityCode: data.securityCode
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        setSuccessMessage('Login successful! Redirecting...');
+        setTimeout(() => {
+          window.location.href = '/doctor/dashboard';
+        }, 1000);
+      } else {
+        setErrorMessage(result.error + (result.details ? `: ${result.details}` : ''));
+      }
+    } catch (error) {
+      setErrorMessage('Network error. Please check your connection and try again.');
+      console.error('Login error:', error);
     }
+  };
+
+  const onSignupSubmit = async (data) => {
+    setErrorMessage('');
+    setSuccessMessage('');
     
     const signupData = new FormData();
-    signupData.append('name', formData.name);
-    signupData.append('email', formData.signupEmail);
-    signupData.append('mobile', formData.mobile);
-    signupData.append('address', formData.address);
-    signupData.append('registrationNumber', formData.registrationNumber);
-    signupData.append('specialization', formData.specialization);
-    signupData.append('college', formData.college);
-    signupData.append('yearOfPassing', formData.yearOfPassing);
-    signupData.append('location', formData.location);
-    signupData.append('onlineStatus', formData.onlineStatus);
-    signupData.append('consultationFee', formData.consultationFee);
-    signupData.append('securityCode', formData.signupSecurityCode);
-    signupData.append('password', formData.signupPassword);
-    if (formData.document) {
-      signupData.append('document', formData.document);
+    signupData.append('name', data.name);
+    signupData.append('email', data.signupEmail);
+    signupData.append('mobile', data.mobile);
+    signupData.append('address', data.address);
+    signupData.append('registrationNumber', data.registrationNumber);
+    signupData.append('specialization', data.specialization);
+    signupData.append('college', data.college);
+    signupData.append('yearOfPassing', data.yearOfPassing);
+    signupData.append('location', data.location);
+    signupData.append('onlineStatus', data.onlineStatus);
+    signupData.append('consultationFee', data.consultationFee);
+    signupData.append('securityCode', data.signupSecurityCode);
+    signupData.append('password', data.signupPassword);
+    if (data.document && data.document[0]) {
+      signupData.append('document', data.document[0]);
     }
     
     try {
@@ -206,30 +204,14 @@ const handleLogin = async (e) => {
         body: signupData
       });
       
-      const data = await response.json();
+      const result = await response.json();
       
       if (response.ok) {
-        setSuccessMessage(data.message || 'Signup successful. Await approval.');
+        setSuccessMessage(result.message || 'Signup successful. Await approval.');
         setIsLogin(true);
-        // Reset form
-        setFormData(prev => ({
-          ...prev,
-          name: '',
-          signupEmail: '',
-          mobile: '',
-          address: '',
-          registrationNumber: '',
-          specialization: '',
-          college: '',
-          yearOfPassing: '',
-          location: '',
-          consultationFee: '',
-          signupSecurityCode: '',
-          signupPassword: '',
-          document: null
-        }));
+        signupForm.reset();
       } else {
-        setErrorMessage(data.error + (data.details ? `: ${data.details}` : ''));
+        setErrorMessage(result.error + (result.details ? `: ${result.details}` : ''));
       }
     } catch (error) {
       setErrorMessage('Network error. Please check your connection and try again.');
@@ -241,7 +223,8 @@ const handleLogin = async (e) => {
     setIsLogin(!isLogin);
     setErrorMessage('');
     setSuccessMessage('');
-    setErrors({});
+    loginForm.reset();
+    signupForm.reset();
   };
 
   const closeProfile = () => {
@@ -271,40 +254,31 @@ const handleLogin = async (e) => {
       )}
 
       {isLogin ? (
-        <form className="profile-form" onSubmit={handleLogin}>
+        <form className="profile-form" onSubmit={handleSubmit(onLoginSubmit)}>
           <input
             type="email"
-            name="email"
             placeholder="Email"
-            value={formData.email}
-            onChange={handleInputChange}
+            {...register('email')}
             className={errors.email ? 'error-input' : ''}
-            required
           />
-          {errors.email && <span className="field-error">{errors.email}</span>}
+          {errors.email && <span className="field-error">{errors.email.message}</span>}
           
           <input
             type="password"
-            name="password"
             placeholder="Password"
-            value={formData.password}
-            onChange={handleInputChange}
+            {...register('password')}
             className={errors.password ? 'error-input' : ''}
-            required
           />
-          {errors.password && <span className="field-error">{errors.password}</span>}
+          {errors.password && <span className="field-error">{errors.password.message}</span>}
           
           <input
             type="password"
-            name="securityCode"
             placeholder="Security Code"
-            value={formData.securityCode}
-            onChange={handleInputChange}
+            {...register('securityCode')}
             className={errors.securityCode ? 'error-input' : ''}
             autoComplete="off"
-            required
           />
-          {errors.securityCode && <span className="field-error">{errors.securityCode}</span>}
+          {errors.securityCode && <span className="field-error">{errors.securityCode.message}</span>}
           
           <button type="submit" className="button">Login</button>
           <p className="toggle" onClick={toggleForm}>
@@ -312,156 +286,141 @@ const handleLogin = async (e) => {
           </p>
         </form>
       ) : (
-        <form className="profile-form" onSubmit={handleSignup}>
+        <form className="profile-form" onSubmit={handleSubmit(onSignupSubmit)}>
           <input
             type="text"
-            name="name"
             placeholder="Full Name"
-            value={formData.name}
-            onChange={handleInputChange}
+            {...register('name')}
             className={errors.name ? 'error-input' : ''}
-            required
           />
-          {errors.name && <span className="field-error">{errors.name}</span>}
+          {errors.name && <span className="field-error">{errors.name.message}</span>}
           
           <input
             type="email"
-            name="signupEmail"
             placeholder="Email"
-            value={formData.signupEmail}
-            onChange={handleInputChange}
+            {...register('signupEmail')}
             className={errors.signupEmail ? 'error-input' : ''}
-            required
           />
-          {errors.signupEmail && <span className="field-error">{errors.signupEmail}</span>}
+          {errors.signupEmail && <span className="field-error">{errors.signupEmail.message}</span>}
           
           <input
             type="tel"
-            name="mobile"
             placeholder="Mobile"
-            value={formData.mobile}
-            onChange={handleInputChange}
+            {...register('mobile')}
             className={errors.mobile ? 'error-input' : ''}
-            pattern="[0-9]{10}"
-            required
           />
-          {errors.mobile && <span className="field-error">{errors.mobile}</span>}
+          {errors.mobile && <span className="field-error">{errors.mobile.message}</span>}
+          
+          <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+            <label style={{ fontSize: '1.4rem', color: '#666', marginBottom: '0.5rem' }}>Date of Birth (Optional)</label>
+            <input
+              type="date"
+              {...register('dateOfBirth')}
+              className={errors.dateOfBirth ? 'error-input' : ''}
+              max={new Date().toISOString().split('T')[0]}
+            />
+            {errors.dateOfBirth && <span className="field-error">{errors.dateOfBirth.message}</span>}
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+            <label style={{ fontSize: '1.4rem', color: '#666', marginBottom: '0.5rem' }}>Gender (Optional)</label>
+            <select
+              {...register('gender')}
+              className={errors.gender ? 'error-input' : ''}
+            >
+              <option value="">Select Gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+            </select>
+            {errors.gender && <span className="field-error">{errors.gender.message}</span>}
+          </div>
           
           <input
             type="text"
-            name="address"
             placeholder="Address"
-            value={formData.address}
-            onChange={handleInputChange}
+            {...register('address')}
             className={errors.address ? 'error-input' : ''}
-            required
           />
-          {errors.address && <span className="field-error">{errors.address}</span>}
+          {errors.address && <span className="field-error">{errors.address.message}</span>}
           
           <input
             type="text"
-            name="registrationNumber"
             placeholder="Registration Number"
-            value={formData.registrationNumber}
-            onChange={handleInputChange}
+            {...register('registrationNumber')}
             className={errors.registrationNumber ? 'error-input' : ''}
-            pattern="[a-zA-Z0-9]{6,20}"
-            required
           />
-          {errors.registrationNumber && <span className="field-error">{errors.registrationNumber}</span>}
+          {errors.registrationNumber && <span className="field-error">{errors.registrationNumber.message}</span>}
           
           <input
             type="text"
-            name="specialization"
             placeholder="Specialization"
-            value={formData.specialization}
-            onChange={handleInputChange}
-            required
+            {...register('specialization')}
           />
+          {errors.specialization && <span className="field-error">{errors.specialization.message}</span>}
           
           <input
             type="text"
-            name="college"
             placeholder="College of latest degree"
-            value={formData.college}
-            onChange={handleInputChange}
-            required
+            {...register('college')}
           />
+          {errors.college && <span className="field-error">{errors.college.message}</span>}
           
           <input
             type="number"
-            name="yearOfPassing"
             placeholder="Year of passing (UG)"
-            value={formData.yearOfPassing}
-            onChange={handleInputChange}
-            min="1970"
-            max="2025"
-            required
+            {...register('yearOfPassing')}
+            className={errors.yearOfPassing ? 'error-input' : ''}
           />
+          {errors.yearOfPassing && <span className="field-error">{errors.yearOfPassing.message}</span>}
           
           <input
             type="text"
-            name="location"
             placeholder="Location"
-            value={formData.location}
-            onChange={handleInputChange}
-            required
+            {...register('location')}
           />
+          {errors.location && <span className="field-error">{errors.location.message}</span>}
           
           <input
             type="file"
-            name="document"
             accept=".pdf,.doc,.docx"
-            onChange={handleInputChange}
+            {...register('document')}
             className={errors.document ? 'error-input' : ''}
-            required
           />
-          {errors.document && <span className="field-error">{errors.document}</span>}
+          {errors.document && <span className="field-error">{errors.document.message}</span>}
           
           <select
-            name="onlineStatus"
-            value={formData.onlineStatus}
-            onChange={handleInputChange}
-            required
+            {...register('onlineStatus')}
           >
             <option value="Online">Online</option>
             <option value="Offline">Offline</option>
           </select>
+          {errors.onlineStatus && <span className="field-error">{errors.onlineStatus.message}</span>}
           
           <input
             type="number"
-            name="consultationFee"
             placeholder="Consultation Fee"
-            value={formData.consultationFee}
-            onChange={handleInputChange}
-            min="0"
-            step="1"
-            required
+            {...register('consultationFee')}
+            className={errors.consultationFee ? 'error-input' : ''}
           />
+          {errors.consultationFee && <span className="field-error">{errors.consultationFee.message}</span>}
           
           <input
             type="password"
-            name="signupSecurityCode"
             placeholder="Security Code"
-            value={formData.signupSecurityCode}
-            onChange={handleInputChange}
+            {...register('signupSecurityCode')}
             className={errors.signupSecurityCode ? 'error-input' : ''}
             autoComplete="off"
-            required
           />
-          {errors.signupSecurityCode && <span className="field-error">{errors.signupSecurityCode}</span>}
+          {errors.signupSecurityCode && <span className="field-error">{errors.signupSecurityCode.message}</span>}
           
           <input
             type="password"
-            name="signupPassword"
             placeholder="Create your password"
-            value={formData.signupPassword}
-            onChange={handleInputChange}
+            {...register('signupPassword')}
             className={errors.signupPassword ? 'error-input' : ''}
-            minLength="6"
-            required
           />
-          {errors.signupPassword && <span className="field-error">{errors.signupPassword}</span>}
+          {errors.signupPassword && <span className="field-error">{errors.signupPassword.message}</span>}
           
           <button type="submit" className="button">Sign Up</button>
           <p className="toggle" onClick={toggleForm}>
