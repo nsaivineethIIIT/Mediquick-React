@@ -1,133 +1,136 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
 import { useDoctor } from '../../context/DoctorContext';
 import axios from 'axios';
 
+// Yup validation schema
+const doctorEditSchema = yup.object().shape({
+  name: yup
+    .string()
+    .required('Name is required')
+    .min(2, 'Name must be at least 2 characters')
+    .max(500, 'Name must not exceed 500 characters')
+    .matches(/^(?=.*[A-Za-z])[A-Za-z0-9\s\-'.]+$/, 'Name must contain at least one letter and can include letters, numbers, spaces, hyphens, apostrophes, and periods'),
+  email: yup
+    .string()
+    .required('Email is required')
+    .matches(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please enter a valid email address'),
+  mobile: yup
+    .string()
+    .required('Mobile number is required')
+    .matches(/^[0-9]{10}$/, 'Mobile number must be exactly 10 digits'),
+  address: yup
+    .string()
+    .required('Address is required')
+    .min(5, 'Address must be at least 5 characters'),
+  specialization: yup
+    .string()
+    .required('Specialization is required'),
+  college: yup
+    .string()
+    .required('College is required'),
+  yearOfPassing: yup
+    .string()
+    .required('Year of passing is required'),
+  location: yup
+    .string()
+    .required('Location is required'),
+  onlineStatus: yup
+    .string()
+    .required('Online status is required'),
+  consultationFee: yup
+    .number()
+    .required('Consultation fee is required')
+    .min(0, 'Consultation fee must be a non-negative number')
+    .typeError('Consultation fee must be a number'),
+  dateOfBirth: yup
+    .date()
+    .nullable()
+    .transform((value, originalValue) => {
+      return originalValue === '' ? null : value;
+    })
+    .max(new Date(), 'Date of birth cannot be in the future')
+    .test('age', 'Doctor must be at least 21 years old', function(value) {
+      if (!value) return true; // Allow empty
+      const age = Math.floor((new Date() - new Date(value)) / 31557600000); // ms in a year
+      return age >= 21;
+    }),
+  gender: yup
+    .string()
+    .nullable()
+    .oneOf(['male', 'female', 'other', null], 'Please select a valid gender')
+});
+
 const DoctorEditProfile = () => {
   const { doctor, loading: contextLoading, error: contextError, refetch } = useDoctor();
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    mobile: '',
-    address: '',
-    specialization: '',
-    college: '',
-    yearOfPassing: '',
-    location: '',
-    onlineStatus: 'Online',
-    consultationFee: 0,
-    profilePhoto: null
-  });
   const [previewPhoto, setPreviewPhoto] = useState('/images/default-doctor.svg');
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState('');
+  const [photoError, setPhotoError] = useState('');
   
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
+  // Initialize react-hook-form with yup resolver
+  const { register, handleSubmit, formState: { errors }, setValue } = useForm({
+    resolver: yupResolver(doctorEditSchema),
+    mode: 'onChange',
+    defaultValues: {
+      name: '',
+      email: '',
+      mobile: '',
+      address: '',
+      specialization: '',
+      college: '',
+      yearOfPassing: '',
+      location: '',
+      onlineStatus: 'Online',
+      consultationFee: 0,
+      dateOfBirth: '',
+      gender: ''
+    }
+  });
+
   useEffect(() => {
     if (doctor) {
-      setFormData({
-        name: doctor.name || '',
-        email: doctor.email || '',
-        mobile: doctor.mobile || '',
-        address: doctor.address || '',
-        specialization: doctor.specialization || '',
-        college: doctor.college || '',
-        yearOfPassing: doctor.yearOfPassing || '',
-        location: doctor.location || '',
-        onlineStatus: doctor.onlineStatus || 'Online',
-        consultationFee: doctor.consultationFee || 0,
-        profilePhoto: null // Reset file input on load
-      });
+      // Update form values with doctor data from context
+      setValue('name', doctor.name || '');
+      setValue('email', doctor.email || '');
+      setValue('mobile', doctor.mobile || '');
+      setValue('address', doctor.address || '');
+      setValue('specialization', doctor.specialization || '');
+      setValue('college', doctor.college || '');
+      setValue('yearOfPassing', doctor.yearOfPassing || '');
+      setValue('location', doctor.location || '');
+      setValue('onlineStatus', doctor.onlineStatus || 'Online');
+      setValue('consultationFee', doctor.consultationFee || 0);
+      
+      // Format date for input field (YYYY-MM-DD)
+      if (doctor.dateOfBirth) {
+        const date = new Date(doctor.dateOfBirth);
+        const formatted = date.toISOString().split('T')[0];
+        setValue('dateOfBirth', formatted);
+      } else {
+        setValue('dateOfBirth', '');
+      }
+      setValue('gender', doctor.gender || '');
+      
       if (doctor.profilePhoto) {
         setPreviewPhoto(`http://localhost:3002/${doctor.profilePhoto}`);
       } else {
         setPreviewPhoto('/images/default-doctor.svg');
       }
     }
-  }, [doctor]);
+  }, [doctor, setValue]);
 
-  // Validation functions
-  const validateName = () => {
-    const name = formData.name.trim();
-    if (name.length < 2 || name.length > 500) {
-      setErrors(prev => ({ ...prev, name: 'Name must be between 2 and 500 characters' }));
-      return false;
-    }
-    setErrors(prev => ({ ...prev, name: '' }));
-    return true;
-  };
-
-  const validateEmail = () => {
-    const email = formData.email.trim();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setErrors(prev => ({ ...prev, email: 'Please enter a valid email address' }));
-      return false;
-    }
-    setErrors(prev => ({ ...prev, email: '' }));
-    return true;
-  };
-
-  const validateMobile = () => {
-    const mobile = formData.mobile.trim();
-    const mobileRegex = /^[0-9]{10}$/;
-    if (!mobileRegex.test(mobile)) {
-      setErrors(prev => ({ ...prev, mobile: 'Mobile number must be 10 digits' }));
-      return false;
-    }
-    setErrors(prev => ({ ...prev, mobile: '' }));
-    return true;
-  };
-
-  const validateAddress = () => {
-    const address = formData.address.trim();
-    if (address.length < 5) {
-      setErrors(prev => ({ ...prev, address: 'Address must be at least 5 characters' }));
-      return false;
-    }
-    setErrors(prev => ({ ...prev, address: '' }));
-    return true;
-  };
-
-  const validateConsultationFee = () => {
-    const fee = formData.consultationFee;
-    if (isNaN(fee) || fee < 0) {
-      setErrors(prev => ({ ...prev, consultationFee: 'Consultation fee must be a non-negative number' }));
-      return false;
-    }
-    setErrors(prev => ({ ...prev, consultationFee: '' }));
-    return true;
-  };
-
-  const validateForm = () => {
-    const isNameValid = validateName();
-    const isEmailValid = validateEmail();
-    const isMobileValid = validateMobile();
-    const isAddressValid = validateAddress();
-    const isFeeValid = validateConsultationFee();
-
-    return isNameValid && isEmailValid && isMobileValid && isAddressValid && isFeeValid;
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
-  };
+  // File change handler
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setFormData(prev => ({ ...prev, profilePhoto: file }));
       const reader = new FileReader();
       reader.onload = (event) => {
         setPreviewPhoto(event.target.result);
@@ -146,37 +149,48 @@ const DoctorEditProfile = () => {
 
         if (data.success) {
             setPreviewPhoto('/images/default-doctor.svg');
-            setFormData(prev => ({ ...prev, profilePhoto: null }));
             refetch(); // Refetch doctor data to update context
             setSuccess('Profile photo removed successfully.');
         } else {
-            setErrors(prev => ({ ...prev, photo: data.message || 'Failed to remove photo' }));
+            setPhotoError(data.message || 'Failed to remove photo');
         }
     } catch (error) {
         console.error('Error removing profile photo:', error);
-        setErrors(prev => ({ ...prev, photo: error.response?.data?.message || 'Server error while removing photo.' }));
+        setPhotoError(error.response?.data?.message || 'Server error while removing photo.');
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const onSubmit = async (formValues) => {
     setLoading(true);
-    setErrors({});
     setSuccess('');
-
-    if (!validateForm()) {
-      setLoading(false);
-      return;
-    }
+    setPhotoError('');
 
     try {
       const data = new FormData();
       // Append all form fields to FormData
-      Object.keys(formData).forEach(key => {
-        if (formData[key] !== null) {
-          data.append(key, formData[key]);
-        }
-      });
+      data.append('name', formValues.name);
+      data.append('email', formValues.email);
+      data.append('mobile', formValues.mobile);
+      data.append('address', formValues.address);
+      data.append('specialization', formValues.specialization);
+      data.append('college', formValues.college);
+      data.append('yearOfPassing', formValues.yearOfPassing);
+      data.append('location', formValues.location);
+      data.append('onlineStatus', formValues.onlineStatus);
+      data.append('consultationFee', formValues.consultationFee);
+      
+      // Add optional fields if provided
+      if (formValues.dateOfBirth) {
+        data.append('dateOfBirth', formValues.dateOfBirth);
+      }
+      if (formValues.gender) {
+        data.append('gender', formValues.gender);
+      }
+      
+      // Add profile photo if a new one was selected
+      if (fileInputRef.current?.files[0]) {
+        data.append('profilePhoto', fileInputRef.current.files[0]);
+      }
 
       const response = await axios.post('http://localhost:3002/doctor/update-profile', data, {
         headers: {
@@ -192,18 +206,14 @@ const DoctorEditProfile = () => {
           navigate('/doctor/profile');
         }, 2000);
       } else {
-        setErrors(prev => ({ ...prev, submit: response.data.message || 'Error updating profile' }));
+        setPhotoError(response.data.message || 'Error updating profile');
       }
     } catch (error) {
       console.error('Error updating profile:', error);
-      setErrors(prev => ({ ...prev, submit: error.response?.data?.message || 'An error occurred while updating the profile' }));
+      setPhotoError(error.response?.data?.message || 'An error occurred while updating the profile');
     } finally {
       setLoading(false);
     }
-  };
-
-  const getInputClass = (fieldName) => {
-    return errors[fieldName] ? 'error-input' : '';
   };
 
   if (contextLoading) {
@@ -232,7 +242,6 @@ const DoctorEditProfile = () => {
           text-decoration: none;
           outline: none;
           box-sizing: border-box;
-          transition: all linear .2s;
         }
 
         .doctor-edit-profile-container {
@@ -258,6 +267,7 @@ const DoctorEditProfile = () => {
 
         header a {
           color: var(--black);
+          transition: color 0.2s ease;
         }
 
         header a:hover {
@@ -289,6 +299,7 @@ const DoctorEditProfile = () => {
           color: var(--black);
           padding: 0.5rem 1rem;
           border-radius: 4px;
+          transition: color 0.2s ease, background-color 0.2s ease;
         }
 
         header .navbar ul li a:hover {
@@ -334,6 +345,7 @@ const DoctorEditProfile = () => {
           border-radius: 5px;
           color: var(--black);
           background-color: #fff;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
         .form-group input:focus,
@@ -401,6 +413,7 @@ const DoctorEditProfile = () => {
           margin: 1rem 0;
           border: 1px solid var(--blue);
           display: block;
+          transition: background 0.2s ease, color 0.2s ease, border 0.2s ease;
         }
 
         .button:hover {
@@ -517,8 +530,8 @@ const DoctorEditProfile = () => {
       <div className="container">
         <h2>Edit Doctor Profile</h2>
 
-        <form onSubmit={handleSubmit}>
-          {errors.submit && <div className="error-message" style={{textAlign: 'center', marginBottom: '15px'}}>{errors.submit}</div>}
+        <form onSubmit={handleSubmit(onSubmit)}>
+          {photoError && <div className="error-message" style={{textAlign: 'center', marginBottom: '15px'}}>{photoError}</div>}
           {success && <div className="success-message">{success}</div>}
 
           {/* Profile Photo Section */}
@@ -552,7 +565,6 @@ const DoctorEditProfile = () => {
                 Remove Photo
               </button>
             </div>
-            {errors.photo && <div className="error-message">{errors.photo}</div>}
           </div>
 
           {/* Form Fields */}
@@ -561,14 +573,10 @@ const DoctorEditProfile = () => {
             <input 
               type="text" 
               id="name" 
-              name="name" 
-              value={formData.name}
-              onChange={handleInputChange}
-              onBlur={validateName}
-              className={getInputClass('name')}
-              required
+              {...register('name')}
+              className={errors.name ? 'error-input' : ''}
             />
-            {errors.name && <div className="error-message">{errors.name}</div>}
+            {errors.name && <div className="error-message">{errors.name.message}</div>}
           </div>
 
           <div className="form-group">
@@ -576,14 +584,10 @@ const DoctorEditProfile = () => {
             <input 
               type="email" 
               id="email" 
-              name="email" 
-              value={formData.email}
-              onChange={handleInputChange}
-              onBlur={validateEmail}
-              className={getInputClass('email')}
-              required
+              {...register('email')}
+              className={errors.email ? 'error-input' : ''}
             />
-            {errors.email && <div className="error-message">{errors.email}</div>}
+            {errors.email && <div className="error-message">{errors.email.message}</div>}
           </div>
 
           <div className="form-group">
@@ -591,15 +595,10 @@ const DoctorEditProfile = () => {
             <input 
               type="text" 
               id="mobile" 
-              name="mobile" 
-              value={formData.mobile}
-              onChange={handleInputChange}
-              onBlur={validateMobile}
-              className={getInputClass('mobile')}
-              pattern="[0-9]{10}"
-              required
+              {...register('mobile')}
+              className={errors.mobile ? 'error-input' : ''}
             />
-            {errors.mobile && <div className="error-message">{errors.mobile}</div>}
+            {errors.mobile && <div className="error-message">{errors.mobile.message}</div>}
           </div>
 
           <div className="form-group">
@@ -607,14 +606,10 @@ const DoctorEditProfile = () => {
             <input 
               type="text" 
               id="address" 
-              name="address" 
-              value={formData.address}
-              onChange={handleInputChange}
-              onBlur={validateAddress}
-              className={getInputClass('address')}
-              required
+              {...register('address')}
+              className={errors.address ? 'error-input' : ''}
             />
-            {errors.address && <div className="error-message">{errors.address}</div>}
+            {errors.address && <div className="error-message">{errors.address.message}</div>}
           </div>
 
           <div className="form-group">
@@ -622,13 +617,10 @@ const DoctorEditProfile = () => {
             <input 
               type="text" 
               id="specialization" 
-              name="specialization" 
-              value={formData.specialization}
-              onChange={handleInputChange}
-              className={getInputClass('specialization')}
-              required
+              {...register('specialization')}
+              className={errors.specialization ? 'error-input' : ''}
             />
-            {errors.specialization && <div className="error-message">{errors.specialization}</div>}
+            {errors.specialization && <div className="error-message">{errors.specialization.message}</div>}
           </div>
 
           <div className="form-group">
@@ -636,13 +628,10 @@ const DoctorEditProfile = () => {
             <input 
               type="text" 
               id="college" 
-              name="college" 
-              value={formData.college}
-              onChange={handleInputChange}
-              className={getInputClass('college')}
-              required
+              {...register('college')}
+              className={errors.college ? 'error-input' : ''}
             />
-            {errors.college && <div className="error-message">{errors.college}</div>}
+            {errors.college && <div className="error-message">{errors.college.message}</div>}
           </div>
 
           <div className="form-group">
@@ -650,13 +639,10 @@ const DoctorEditProfile = () => {
             <input 
               type="text" 
               id="yearOfPassing" 
-              name="yearOfPassing" 
-              value={formData.yearOfPassing}
-              onChange={handleInputChange}
-              className={getInputClass('yearOfPassing')}
-              required
+              {...register('yearOfPassing')}
+              className={errors.yearOfPassing ? 'error-input' : ''}
             />
-            {errors.yearOfPassing && <div className="error-message">{errors.yearOfPassing}</div>}
+            {errors.yearOfPassing && <div className="error-message">{errors.yearOfPassing.message}</div>}
           </div>
 
           <div className="form-group">
@@ -664,29 +650,23 @@ const DoctorEditProfile = () => {
             <input 
               type="text" 
               id="location" 
-              name="location" 
-              value={formData.location}
-              onChange={handleInputChange}
-              className={getInputClass('location')}
-              required
+              {...register('location')}
+              className={errors.location ? 'error-input' : ''}
             />
-            {errors.location && <div className="error-message">{errors.location}</div>}
+            {errors.location && <div className="error-message">{errors.location.message}</div>}
           </div>
 
           <div className="form-group">
             <label htmlFor="onlineStatus">Online Status:</label>
             <select 
               id="onlineStatus" 
-              name="onlineStatus" 
-              value={formData.onlineStatus}
-              onChange={handleInputChange}
-              className={getInputClass('onlineStatus')}
-              required
+              {...register('onlineStatus')}
+              className={errors.onlineStatus ? 'error-input' : ''}
             >
               <option value="Online">Online</option>
               <option value="Offline">Offline</option>
             </select>
-            {errors.onlineStatus && <div className="error-message">{errors.onlineStatus}</div>}
+            {errors.onlineStatus && <div className="error-message">{errors.onlineStatus.message}</div>}
           </div>
 
           <div className="form-group">
@@ -694,16 +674,38 @@ const DoctorEditProfile = () => {
             <input 
               type="number" 
               id="consultationFee" 
-              name="consultationFee" 
-              value={formData.consultationFee}
-              onChange={handleInputChange}
-              onBlur={validateConsultationFee}
-              className={getInputClass('consultationFee')}
-              min="0"
+              {...register('consultationFee')}
+              className={errors.consultationFee ? 'error-input' : ''}
               step="0.01"
-              required
             />
-            {errors.consultationFee && <div className="error-message">{errors.consultationFee}</div>}
+            {errors.consultationFee && <div className="error-message">{errors.consultationFee.message}</div>}
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="dateOfBirth">Date of Birth (Optional):</label>
+            <input 
+              type="date" 
+              id="dateOfBirth" 
+              {...register('dateOfBirth')}
+              className={errors.dateOfBirth ? 'error-input' : ''}
+              max={new Date().toISOString().split('T')[0]}
+            />
+            {errors.dateOfBirth && <div className="error-message">{errors.dateOfBirth.message}</div>}
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="gender">Gender (Optional):</label>
+            <select 
+              id="gender" 
+              {...register('gender')}
+              className={errors.gender ? 'error-input' : ''}
+            >
+              <option value="">Select Gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+            </select>
+            {errors.gender && <div className="error-message">{errors.gender.message}</div>}
           </div>
 
           {/* Form Actions */}
