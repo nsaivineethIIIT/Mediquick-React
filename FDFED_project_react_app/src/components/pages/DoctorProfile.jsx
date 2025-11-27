@@ -100,7 +100,6 @@ const DoctorProfile = () => {
           text-decoration: none;
           outline: none;
           box-sizing: border-box;
-          transition: all linear .2s;
         }
 
         html {
@@ -133,6 +132,7 @@ const DoctorProfile = () => {
 
         header a {
           color: var(--black);
+          transition: color 0.2s ease;
         }
 
         header a:hover {
@@ -164,6 +164,7 @@ const DoctorProfile = () => {
           color: var(--black);
           padding: 0.5rem 1rem;
           border-radius: 4px;
+          transition: color 0.2s ease, background-color 0.2s ease;
         }
 
         header .navbar ul li a:hover {
@@ -239,6 +240,7 @@ const DoctorProfile = () => {
           border-radius: .5rem;
           font-size: 1.5rem;
           border: .1rem solid var(--blue);
+          transition: background 0.2s ease, color 0.2s ease, border 0.2s ease;
         }
 
         .appointment-item:hover {
@@ -308,6 +310,7 @@ const DoctorProfile = () => {
           margin: 1rem;
           border: .1rem solid var(--blue);
           text-decoration: none;
+          transition: background 0.2s ease, color 0.2s ease, border 0.2s ease;
         }
 
         .btn:hover {
@@ -513,6 +516,16 @@ const DoctorProfile = () => {
                 <p><strong>Email:</strong> {doctor.email || 'N/A'}</p>
                 <p><strong>Mobile:</strong> {doctor.mobile || 'N/A'}</p>
                 <p><strong>Address:</strong> {doctor.address || 'N/A'}</p>
+                {doctor.dateOfBirth && (
+                  <p><strong>Date of Birth:</strong> {new Date(doctor.dateOfBirth).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}</p>
+                )}
+                {doctor.gender && (
+                  <p><strong>Gender:</strong> {doctor.gender.charAt(0).toUpperCase() + doctor.gender.slice(1)}</p>
+                )}
                 <p><strong>Specialization:</strong> {doctor.specialization || 'N/A'}</p>
                 <p><strong>College:</strong> {doctor.college || 'N/A'}</p>
                 <p><strong>Year of Passing:</strong> {doctor.yearOfPassing || 'N/A'}</p>
