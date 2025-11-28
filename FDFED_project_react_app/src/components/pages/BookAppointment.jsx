@@ -213,106 +213,84 @@
 // };
 
 // export default BookDocOnline;
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { usePatient } from '../../context/PatientContext';
+import {
+    fetchOfflineDoctors,
+    setSearchQuery,
+    setSpecializationFilter,
+    setLocationFilter,
+    clearFilters
+} from '../../store/slices/appointmentSlice';
 
 const BookAppointment = () => {
-    const [allDoctors, setAllDoctors] = useState([]);
-    const [filteredDoctors, setFilteredDoctors] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const { patient } = usePatient();
+    const dispatch = useDispatch();
     
-    // Filter states
-    const [searchQuery, setSearchQuery] = useState('');
-    const [specializationFilter, setSpecializationFilter] = useState('');
-    const [locationFilter, setLocationFilter] = useState('');
-    
-    // Available filters
-    const [specializations, setSpecializations] = useState([]);
-    const [locations, setLocations] = useState([]);
+    // Redux state
+    const {
+        offlineDoctors,
+        doctorsLoading: loading,
+        doctorsError: error,
+        filters
+    } = useSelector((state) => state.appointments);
 
     useEffect(() => {
-        loadDoctors();
-    }, []);
+        dispatch(fetchOfflineDoctors());
+    }, [dispatch]);
 
-    useEffect(() => {
-        filterDoctors();
-    }, [searchQuery, specializationFilter, locationFilter, allDoctors]);
-
-    const loadDoctors = async () => {
-        try {
-            setLoading(true);
-            setError('');
-            
-            const response = await fetch('http://localhost:3002/patient/api/doctors/offline', {
-                credentials: 'include'
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to fetch doctors');
-            }
-            
-            const doctors = await response.json();
-            setAllDoctors(doctors);
-            
-            // Extract unique specializations and locations
-            const uniqueSpecializations = [...new Set(doctors.map(doc => doc.specialization).filter(Boolean))];
-            const uniqueLocations = [...new Set(doctors.map(doc => doc.location).filter(Boolean))];
-            
-            setSpecializations(uniqueSpecializations);
-            setLocations(uniqueLocations);
-            
-        } catch (err) {
-            console.error('Error fetching doctors:', err);
-            setError('Error loading doctors. Please try again later.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const filterDoctors = () => {
-        let filtered = allDoctors;
+    // Compute filtered doctors and available options
+    const { filteredDoctors, specializations, locations } = useMemo(() => {
+        let filtered = offlineDoctors;
 
         // Apply specialization filter
-        if (specializationFilter) {
+        if (filters.specialization) {
             filtered = filtered.filter(doctor => 
-                doctor.specialization === specializationFilter
+                doctor.specialization === filters.specialization
             );
         }
 
         // Apply location filter
-        if (locationFilter) {
+        if (filters.location) {
             filtered = filtered.filter(doctor => 
-                doctor.location.toLowerCase().includes(locationFilter.toLowerCase())
+                doctor.location.toLowerCase().includes(filters.location.toLowerCase())
             );
         }
 
         // Apply search query filter
-        if (searchQuery) {
+        if (filters.searchQuery) {
             filtered = filtered.filter(doctor => 
-                doctor.name.toLowerCase().includes(searchQuery.toLowerCase())
+                doctor.name.toLowerCase().includes(filters.searchQuery.toLowerCase())
             );
         }
 
-        setFilteredDoctors(filtered);
-    };
+        // Extract unique specializations and locations
+        const uniqueSpecializations = [...new Set(offlineDoctors.map(doc => doc.specialization).filter(Boolean))];
+        const uniqueLocations = [...new Set(offlineDoctors.map(doc => doc.location).filter(Boolean))];
+
+        return {
+            filteredDoctors: filtered,
+            specializations: uniqueSpecializations,
+            locations: uniqueLocations
+        };
+    }, [offlineDoctors, filters]);
 
     const handleSearchChange = (e) => {
-        setSearchQuery(e.target.value);
+        dispatch(setSearchQuery(e.target.value));
     };
 
     const handleSpecializationChange = (e) => {
-        setSpecializationFilter(e.target.value);
+        dispatch(setSpecializationFilter(e.target.value));
     };
 
     const handleLocationChange = (e) => {
-        setLocationFilter(e.target.value);
+        dispatch(setLocationFilter(e.target.value));
     };
 
-    const clearFilters = () => {
-        setSearchQuery('');
-        setSpecializationFilter('');
-        setLocationFilter('');
+    const handleClearFilters = () => {
+        dispatch(clearFilters());
     };
 
     return (
@@ -323,6 +301,11 @@ const BookAppointment = () => {
                 </Link>
                 <nav className="navbar">
                     <ul>
+                        <li>
+              {patient && patient.name && (
+        <h1 className="welcome-message">Welcome, {patient.name}!</h1>
+      )}
+            </li>
                         <li><Link to="/about">About Us</Link></li>
                         <li><Link to="/faqs">FAQs</Link></li>
                         <li><Link to="/blogs">Blog</Link></li>
@@ -347,12 +330,12 @@ const BookAppointment = () => {
                     <input 
                         type="text" 
                         placeholder="Search doctors by name..." 
-                        value={searchQuery}
+                        value={filters.searchQuery}
                         onChange={handleSearchChange}
                     />
                     <select 
                         className="filter-dropdown"
-                        value={specializationFilter}
+                        value={filters.specialization}
                         onChange={handleSpecializationChange}
                     >
                         <option value="">All Specializations</option>
@@ -362,7 +345,7 @@ const BookAppointment = () => {
                     </select>
                     <select 
                         className="filter-dropdown"
-                        value={locationFilter}
+                        value={filters.location}
                         onChange={handleLocationChange}
                     >
                         <option value="">All Locations</option>
@@ -370,7 +353,7 @@ const BookAppointment = () => {
                             <option key={location} value={location}>{location}</option>
                         ))}
                     </select>
-                    <button className="button" onClick={clearFilters}>
+                    <button className="button" onClick={handleClearFilters}>
                         Clear Filters
                     </button>
                 </div>
