@@ -1,301 +1,360 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import MedicineHeader from '../common/MedicineHeader';
-import { showMessage, getToastClass } from '../../utils/alerts';
+import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
+import '../../assets/css/AdminForm.css';
 
-const Checkout = () => {
-    const [patientData, setPatientData] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [selectedAddressId, setSelectedAddressId] = useState(null);
-    const [isNewAddressFormVisible, setIsNewAddressFormVisible] = useState(true);
-    const [initialError, setInitialError] = useState(null);
+// --- Yup Validation Schemas ---
+
+const passwordRule = yup
+  .string()
+  .required('Password is required')
+  .min(6, 'Password must be at least 6 characters')
+  .matches(/^(?=.*[A-Za-z])(?=.*\d)/, 'Password must contain at least one letter and one number');
+
+const emailRule = yup
+  .string()
+  .required('Email is required')
+  .matches(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please enter a valid email address');
+
+const loginSchema = yup.object().shape({
+  email: emailRule,
+  password: passwordRule,
+  securityCode: yup
+    .string()
+    .required('Security code is required')
+});
+
+const signupSchema = yup.object().shape({
+  name: yup
+    .string()
+    .required('Name is required')
+    .min(2, 'Name must be between 2 and 500 characters')
+    .max(500, 'Name must be between 2 and 500 characters')
+    .matches(/^(?=.*[A-Za-z])[A-Za-z0-9\s\-'.]+$/, 'Name must contain at least one letter and can include letters, numbers, spaces, hyphens, apostrophes, and periods'),
+  signupEmail: emailRule,
+  mobile: yup
+    .string()
+    .required('Mobile number is required')
+    .matches(/^\d{10}$/, 'Mobile number must be 10 digits'),
+  address: yup
+    .string()
+    .required('Address is required')
+    .min(5, 'Address must be at least 5 characters'),
+  signupPassword: passwordRule,
+  signupSecurityCode: yup
+    .string()
+    .required('Security code is required')
+});
+
+// --- React Component ---
+
+const AdminForm = () => {
+  const [isLogin, setIsLogin] = useState(true);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Initialize react-hook-form with yup resolver for Login
+  const loginForm = useForm({
+    resolver: yupResolver(loginSchema),
+    // Changed to 'onChange' for real-time validation as the user types
+    mode: 'onChange', 
+    defaultValues: {
+      email: '',
+      password: '',
+      securityCode: ''
+    }
+  });
+
+  // Initialize react-hook-form with yup resolver for Signup
+  const signupForm = useForm({
+    resolver: yupResolver(signupSchema),
+    // Changed to 'onChange' for real-time validation as the user types
+    mode: 'onChange', 
+    defaultValues: {
+      name: '',
+      signupEmail: '',
+      mobile: '',
+      address: '',
+      signupPassword: '',
+      signupSecurityCode: ''
+    }
+  });
+
+  // Use the appropriate form based on isLogin state
+  // Errors object will update instantly due to mode: 'onChange'
+  const { register, handleSubmit, formState: { errors }, reset } = isLogin ? loginForm : signupForm;
+
+  // --- Form Submission Handlers ---
+
+  const handleLogin = async (data) => {
+    setErrorMessage('');
+    setSuccessMessage('');
     
-    const navigate = useNavigate();
-    const location = useLocation();
-    const fetchConfig = { credentials: 'include' };
+    // Custom error message for user
+    // No need to check for password error explicitly here as handleSubmit already ensures no form errors, 
+    // but keeping the logic for custom error visibility if formState has validation errors
+    if (loginForm.formState.errors.password) {
+        setErrorMessage('Please correct the errors in the form. Note that the password should be at least 6 characters long and contain at least one letter and one number, with no spaces.');
+        return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:3002/admin/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+          securityCode: data.securityCode
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        setSuccessMessage('Login successful! Redirecting...');
+        setTimeout(() => {
+          window.location.href = result.redirect || '/admin/dashboard';
+        }, 1000);
+      } else {
+        setErrorMessage(result.error + (result.details ? `: ${result.details}` : ''));
+      }
+    } catch (error) {
+      setErrorMessage('Network error. Please check your connection and try again.');
+      console.error('Login error:', error);
+    }
+  };
+
+  const handleSignup = async (data) => {
+    setErrorMessage('');
+    setSuccessMessage('');
     
-    const searchParams = new URLSearchParams(location.search);
-    const isSingle = searchParams.get('type') === 'single';
-    const medicineId = searchParams.get('medicineId');
-    const quantity = searchParams.get('quantity');
-    const errorFromRedirect = searchParams.get('error');
+    // Custom error message for user
+    if (signupForm.formState.errors.signupPassword) {
+        setErrorMessage('Please correct the errors in the form. Note that the password should be at least 6 characters long and contain at least one letter and one number, with no spaces.');
+        return;
+    }
 
-    // Form state for new address
-    const [newAddress, setNewAddress] = useState({
-        label: 'Home', street: '', city: '', state: '', zip: '', country: 'India'
-    });
-    const [formErrors, setFormErrors] = useState({});
+    try {
+      const response = await fetch('http://localhost:3002/admin/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: data.name,
+          email: data.signupEmail,
+          mobile: data.mobile,
+          address: data.address,
+          password: data.signupPassword,
+          securityCode: data.signupSecurityCode
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        setSuccessMessage(result.message || 'Signup successful! Please login.');
+        setIsLogin(true);
+        // Reset signup form
+        signupForm.reset();
+      } else {
+        setErrorMessage(result.error + (result.details ? `: ${result.details}` : ''));
+      }
+    } catch (error) {
+      setErrorMessage('Network error. Please check your connection and try again.');
+      console.error('Signup error:', error);
+    }
+  };
 
-    useEffect(() => {
-        if (errorFromRedirect) {
-             showMessage(decodeURIComponent(errorFromRedirect), getToastClass('danger'));
-        }
+  const toggleForm = () => {
+    setIsLogin(!isLogin);
+    setErrorMessage('');
+    setSuccessMessage('');
+    // Reset both forms when toggling
+    loginForm.reset();
+    signupForm.reset();
+  };
+
+  const closeProfile = () => {
+    window.location.href = "/";
+  };
+
+  return (
+    <div className="admin-form-container">
+      <div className="admin-form-wrapper">
+        <div className="close-btn" onClick={closeProfile}>
+          <i className="fas fa-times"></i>
+        </div>
         
-        fetchCheckoutData();
-    }, [location.search]);
+        <div className="admin-form-header">
+          <a href="/" className="logo"><span>M</span>edi<span>Q</span>uick</a>
+          <h1>{isLogin ? 'Admin Login' : 'Admin Sign Up'}</h1>
+          <p>Welcome to MediQuick Admin Portal</p>
+        </div>
 
-    const fetchCheckoutData = async () => {
-        setLoading(true);
-        try {
-            // Assuming a dedicated API endpoint returns checkout setup data
-            const response = await fetch('/patient/api/checkout-data', fetchConfig); 
-            
-            if (!response.ok) throw new Error('Failed to fetch checkout data. Please log in.');
+      {errorMessage && (
+        <div className="error-message" id="errlogin">
+          {errorMessage}
+        </div>
+      )}
+      
+      {successMessage && (
+        <div className="success-message" id="successlogin">
+          {successMessage}
+        </div>
+      )}
 
-            const data = await response.json(); 
-            const addresses = data.addresses || [];
-            setPatientData(data); 
-
-            // Initialize selection: if saved addresses exist, select the first one.
-            if (addresses.length > 0) {
-                const defaultAddress = addresses[0];
-                setSelectedAddressId(defaultAddress._id);
-                setIsNewAddressFormVisible(false); // Use saved address initially
-            } else {
-                setSelectedAddressId(null);
-                setIsNewAddressFormVisible(true); // Default to new form
-            }
-        } catch (err) {
-            console.error('Error fetching checkout data:', err);
-            setInitialError('Failed to load checkout details. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleSelectSavedAddress = (id) => {
-        setSelectedAddressId(id);
-        setIsNewAddressFormVisible(false);
-        setFormErrors({});
-    };
-
-    const handleUseNewAddress = () => {
-        setSelectedAddressId(null);
-        setIsNewAddressFormVisible(true);
-    };
-
-    const handleNewAddressChange = (e) => {
-        const { name, value } = e.target;
-        setNewAddress(prev => ({ ...prev, [name]: value }));
-        if (formErrors[name]) setFormErrors(prev => ({ ...prev, [name]: '' }));
-    };
-
-    const validateNewAddress = () => {
-        const errors = {};
-        if (!newAddress.street.trim()) errors.street = 'Street Address is required';
-        if (!newAddress.city.trim()) errors.city = 'City is required';
-        if (!newAddress.state.trim()) errors.state = 'State is required';
-        if (!newAddress.zip.trim()) errors.zip = 'ZIP Code is required';
-        if (!newAddress.country.trim()) errors.country = 'Country is required';
-        
-        setFormErrors(errors);
-        return Object.keys(errors).length === 0;
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        
-        const submitBtn = document.getElementById('submitBtn');
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
-
-        let payload = {};
-        
-        if (isSingle) {
-            payload = { type: 'single', medicineId, quantity };
-        } else {
-            payload = { type: 'cart' };
-        }
-
-        if (selectedAddressId && !isNewAddressFormVisible) {
-            // Case 1: Using saved address
-            payload.selectedAddressId = selectedAddressId;
-        } else if (isNewAddressFormVisible) {
-            // Case 2: Using new address
-            if (!validateNewAddress()) {
-                showMessage('Please fill in all required address fields.', getToastClass('danger'));
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<i class="fas fa-shopping-bag me-2"></i>Review Order & Continue';
-                return;
-            }
-            payload = { ...payload, ...newAddress };
-        } else {
-            // Should not happen if initial logic is correct, but safe guard
-            showMessage('Please select or enter a delivery address.', getToastClass('danger'));
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fas fa-shopping-bag me-2"></i>Review Order & Continue';
-            return;
-        }
-
-        try {
-            // Submit to the server POST endpoint
-            const response = await fetch('/patient/checkout', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-                credentials: 'include'
-            });
-
-            // Handle successful redirection to /patient/order-details
-            if (response.redirected) {
-                window.location.href = response.url;
-                return;
-            }
-            
-            // Handle JSON error response if redirection fails
-            const data = await response.json();
-            throw new Error(data.error || data.message || 'Error processing checkout.');
-
-        } catch (error) {
-            console.error('Checkout error:', error);
-            const redirectUrl = `/patient/checkout?${isSingle ? `type=single&medicineId=${medicineId}&quantity=${quantity}&` : ''}error=${encodeURIComponent(error.message)}`;
-            navigate(redirectUrl);
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fas fa-shopping-bag me-2"></i>Review Order & Continue';
-        }
-    };
-
-    if (loading) return <div style={{paddingTop: '80px', textAlign: 'center'}}>Loading...</div>;
-    if (initialError) return <div style={{paddingTop: '80px', textAlign: 'center', color: 'red'}}>{initialError}</div>;
-
-    const addresses = patientData?.addresses || [];
-    
-    return (
-        <>
-            <MedicineHeader />
-            <div className="container checkout-container" style={{ paddingTop: '80px' }}>
-                <h2 className="mb-4">Checkout</h2>
-                
-                {/* Initial Error Display (from URL) */}
-                {errorFromRedirect && (
-                    <div className="alert alert-danger">
-                        <strong>Error:</strong> {decodeURIComponent(errorFromRedirect)}
-                    </div>
-                )}
-
-                {/* Order Summary (Placeholder values from EJS) */}
-                <div className="order-summary">
-                    <h5 className="mb-3">Order Summary</h5>
-                    <div className="summary-item">
-                        <span>Items Total:</span>
-                        <span>Calculated at next step</span>
-                    </div>
-                    <div className="summary-item">
-                        <span>Delivery Charges:</span>
-                        <span>₹10.00</span>
-                    </div>
-                    <div className="summary-item total-amount">
-                        <span>Total Amount:</span>
-                        <span>Will be calculated</span>
-                    </div>
-                </div>
-
-                <form id="checkoutForm" onSubmit={handleSubmit}>
-                    {isSingle && (
-                        <>
-                            <input type="hidden" name="type" value="single" />
-                            <input type="hidden" name="medicineId" value={medicineId} />
-                            <input type="hidden" name="quantity" value={quantity} />
-                        </>
-                    )}
-                    {!isSingle && <input type="hidden" name="type" value="cart" />}
-
-                    <div className="mb-4">
-                        <h4 className="mb-3">Delivery Address</h4>
-                        
-                        {/* New Address Form Section */}
-                        <div className="address-form-section" style={{display: isNewAddressFormVisible ? 'block' : 'none'}}>
-                            <div className="alert alert-info">
-                                <strong>Enter Delivery Address</strong> - This address will be saved for future orders
-                            </div>
-                            
-                            <div className="row">
-                                <div className="col-md-6 form-group">
-                                    <FormGroup label="Label" name="label" value={newAddress.label} onChange={handleNewAddressChange} required={isNewAddressFormVisible} disabled={!isNewAddressFormVisible} error={formErrors.label}/>
-                                </div>
-                            </div>
-                            <FormGroup label="Street Address" name="street" value={newAddress.street} onChange={handleNewAddressChange} required={isNewAddressFormVisible} disabled={!isNewAddressFormVisible} error={formErrors.street}/>
-                            <div className="row">
-                                <div className="col-md-6 form-group">
-                                    <FormGroup label="City" name="city" value={newAddress.city} onChange={handleNewAddressChange} required={isNewAddressFormVisible} disabled={!isNewAddressFormVisible} error={formErrors.city}/>
-                                </div>
-                                <div className="col-md-6 form-group">
-                                    <FormGroup label="State" name="state" value={newAddress.state} onChange={handleNewAddressChange} required={isNewAddressFormVisible} disabled={!isNewAddressFormVisible} error={formErrors.state}/>
-                                </div>
-                            </div>
-                            <div className="row">
-                                <div className="col-md-6 form-group">
-                                    <FormGroup label="ZIP Code" name="zip" value={newAddress.zip} onChange={handleNewAddressChange} required={isNewAddressFormVisible} disabled={!isNewAddressFormVisible} error={formErrors.zip}/>
-                                </div>
-                                <div className="col-md-6 form-group">
-                                    <FormGroup label="Country" name="country" value={newAddress.country} onChange={handleNewAddressChange} required={isNewAddressFormVisible} disabled={!isNewAddressFormVisible} error={formErrors.country}/>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Saved Addresses */}
-                        {addresses.length > 0 && (
-                            <div className="saved-addresses-section mt-4">
-                                <h5 className="mb-3">Or select from saved addresses</h5>
-                                <div id="savedAddresses">
-                                    {addresses.map(addr => (
-                                        <div key={addr._id} className={`address-card ${selectedAddressId === addr._id && !isNewAddressFormVisible ? 'selected' : ''}`} onClick={() => handleSelectSavedAddress(addr._id)} id={`saved-card-${addr._id}`}>
-                                            <h6 className="mb-2">
-                                                {addr.label || 'Address'}
-                                                {addr.isDefault && <span className="badge bg-success ms-2">Default</span>}
-                                            </h6>
-                                            <p className="mb-1">{addr.street}</p>
-                                            <p className="mb-1">{addr.city}, {addr.state} {addr.zip}</p>
-                                            <p className="mb-0">{addr.country}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="mt-3">
-                                    <button type="button" className="btn btn-outline-secondary btn-sm" onClick={handleUseNewAddress}>
-                                        <i className="fas fa-plus me-1"></i>Use New Address Instead
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="alert alert-warning">
-                        <h6><i className="fas fa-info-circle me-2"></i>Important Information</h6>
-                        <ul className="mb-0">
-                            <li>₹10 delivery charge will be applied for all orders</li>
-                            <li>You can review your order and choose payment method in the next step</li>
-                            <li>Orders are processed within 24 hours</li>
-                            <li>Your address will be saved for faster checkout next time</li>
-                        </ul>
-                    </div>
-
-                    <div className="d-grid gap-2">
-                        <button type="submit" className="btn btn-place-order" id="submitBtn">
-                            <i className="fas fa-shopping-bag me-2"></i>Review Order & Continue
-                        </button>
-                        <Link to="/patient/order-medicines" className="btn btn-outline-secondary">Continue Shopping</Link>
-                    </div>
-                </form>
+        {/* RHF's handleSubmit handles validation before calling the submit handler */}
+        {isLogin ? (
+          <form className="admin-form" onSubmit={handleSubmit(handleLogin)}>
+            <div className="form-group">
+              <label htmlFor="email">Email Address</label>
+              <input
+                id="email"
+                type="email"
+                placeholder="Enter your email address"
+                {...register('email')}
+                className={errors.email ? 'error-input' : ''}
+                required
+              />
+              {errors.email && <span className="field-error">{errors.email.message}</span>}
             </div>
-        </>
-    );
+            
+            <div className="form-group">
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                type="password"
+                placeholder="Enter your password"
+                {...register('password')}
+                className={errors.password ? 'error-input' : ''}
+                required
+              />
+              {errors.password && <span className="field-error">{errors.password.message}</span>}
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="securityCode">Security Code</label>
+              <input
+                id="securityCode"
+                type="password"
+                placeholder="Enter security code"
+                {...register('securityCode')}
+                className={errors.securityCode ? 'error-input' : ''}
+                autoComplete="off"
+                required
+              />
+              {errors.securityCode && <span className="field-error">{errors.securityCode.message}</span>}
+            </div>
+            
+            <button type="submit" className="submit-btn">Login</button>
+            
+            <div className="form-links">
+              <a href="#" onClick={toggleForm}>
+                Don't have an account? Sign Up
+              </a>
+            </div>
+        </form>
+        ) : (
+          <form className="admin-form" onSubmit={handleSubmit(handleSignup)}>
+            <div className="form-group">
+              <label htmlFor="name">Full Name</label>
+              <input
+                id="name"
+                type="text"
+                placeholder="Enter your full name"
+                {...register('name')}
+                className={errors.name ? 'error-input' : ''}
+                required
+              />
+              {errors.name && <span className="field-error">{errors.name.message}</span>}
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="signupEmail">Email Address</label>
+              <input
+                id="signupEmail"
+                type="email"
+                placeholder="Enter your email address"
+                {...register('signupEmail')}
+                className={errors.signupEmail ? 'error-input' : ''}
+                required
+              />
+              {errors.signupEmail && <span className="field-error">{errors.signupEmail.message}</span>}
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="mobile">Mobile Number</label>
+              <input
+                id="mobile"
+                type="tel"
+                placeholder="Enter your mobile number"
+                {...register('mobile')}
+                className={errors.mobile ? 'error-input' : ''}
+                pattern="[0-9]{10}"
+                required
+              />
+              {errors.mobile && <span className="field-error">{errors.mobile.message}</span>}
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="address">Address</label>
+              <textarea
+                id="address"
+                placeholder="Enter your full address"
+                {...register('address')}
+                className={errors.address ? 'error-input' : ''}
+                rows="3"
+                required
+              />
+              {errors.address && <span className="field-error">{errors.address.message}</span>}
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="signupPassword">Password</label>
+              <input
+                id="signupPassword"
+                type="password"
+                placeholder="Create your password"
+                {...register('signupPassword')}
+                className={errors.signupPassword ? 'error-input' : ''}
+                minLength="6"
+                required
+              />
+              {errors.signupPassword && <span className="field-error">{errors.signupPassword.message}</span>}
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="signupSecurityCode">Security Code</label>
+              <input
+                id="signupSecurityCode"
+                type="password"
+                placeholder="Enter security code"
+                {...register('signupSecurityCode')}
+                className={errors.signupSecurityCode ? 'error-input' : ''}
+                autoComplete="off"
+                required
+              />
+              {errors.signupSecurityCode && <span className="field-error">{errors.signupSecurityCode.message}</span>}
+            </div>
+            
+            <button type="submit" className="submit-btn">Sign Up</button>
+            
+            <div className="form-links">
+              <a href="#" onClick={toggleForm}>
+                Already have an account? Sign In
+              </a>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
 };
 
-const FormGroup = ({ label, name, value, onChange, required, disabled, error }) => (
-    <div className="form-group">
-        <label className={`form-label ${required ? 'required' : ''}`}>{label}</label>
-        <input 
-            type="text" 
-            name={name} 
-            className={`form-control ${error ? 'is-invalid' : ''}`} 
-            value={value} 
-            onChange={onChange} 
-            required={required} 
-            disabled={disabled}
-        />
-         {error && <div className="invalid-feedback">{error}</div>}
-    </div>
-);
-
-export default Checkout;
+export default AdminForm;
