@@ -1,17 +1,28 @@
+import '../../assets/css/patient_profile.css';
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import { usePatient } from '../../context/PatientContext';
+import {
+  fetchPatientAppointments,
+  cancelAppointment
+} from '../../store/slices/appointmentSlice';
 
 const PatientProfile = () => {
   const { patient, loading: profileLoading, error: profileError, refetch: refetchPatient } = usePatient();
+  const dispatch = useDispatch();
+  
+  
+  
+  // Redux state
+  const {
+    patientAppointments,
+    patientAppointmentsLoading: loading,
+    patientAppointmentsError: error
+  } = useSelector((state) => state.appointments);
 
-  const [previousAppointments, setPreviousAppointments] = useState([]);
-  const [upcomingAppointments, setUpcomingAppointments] = useState([]);
-  const [loading, setLoading] = useState({
-    previous: true,
-    upcoming: true
-  });
-  const [errors, setErrors] = useState({});
+  const previousAppointments = patientAppointments.previous;
+  const upcomingAppointments = patientAppointments.upcoming;
   const [chatModal, setChatModal] = useState({
     isOpen: false,
     appointmentId: null,
@@ -23,36 +34,8 @@ const PatientProfile = () => {
   const chatMessagesRef = useRef(null);
   const navigate = useNavigate();
 
-  // Fetch appointments
-  const fetchAppointments = async (type) => {
-    try {
-      const response = await fetch(`http://localhost:3002/patient/api/patient/appointments/${type}`, {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch ${type} appointments`);
-      }
-      
-      const appointments = await response.json();
-      
-      if (type === 'previous') {
-        setPreviousAppointments(appointments);
-      } else {
-        setUpcomingAppointments(appointments);
-      }
-      
-      setLoading(prev => ({ ...prev, [type]: false }));
-      
-    } catch (error) {
-      console.error(`Error fetching ${type} appointments:`, error);
-      setErrors(prev => ({ ...prev, [type]: error.message }));
-      setLoading(prev => ({ ...prev, [type]: false }));
-    }
-  };
-
   // Cancel appointment
-  const cancelAppointment = async (appointmentId) => {
+  const handleCancelAppointment = async (appointmentId) => {
     const appointment = upcomingAppointments.find(appt => appt.id === appointmentId);
     
     if (appointment) {
@@ -71,30 +54,14 @@ const PatientProfile = () => {
 
     if (confirm('Are you sure you want to cancel this appointment?')) {
       try {
-        const response = await fetch(`http://localhost:3002/appointment/patient/${appointmentId}/cancel`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include'
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || errorData.details || 'Failed to cancel appointment');
-        }
-
-        const data = await response.json();
-        
-        if (data.message) {
-          alert('Appointment cancelled successfully');
-          // Refresh appointments
-          fetchAppointments('upcoming');
-          fetchAppointments('previous');
-        }
+        await dispatch(cancelAppointment(appointmentId)).unwrap();
+        alert('Appointment cancelled successfully');
+        // Refresh appointments
+        dispatch(fetchPatientAppointments('upcoming'));
+        dispatch(fetchPatientAppointments('previous'));
       } catch (error) {
         console.error('Error:', error);
-        alert(error.message || 'An error occurred while cancelling the appointment');
+        alert(error || 'An error occurred while cancelling the appointment');
       }
     }
   };
@@ -216,9 +183,9 @@ const PatientProfile = () => {
 
   // Load data on component mount
   useEffect(() => {
-    fetchAppointments('previous');
-    fetchAppointments('upcoming');
-  }, []);
+    dispatch(fetchPatientAppointments('previous'));
+    dispatch(fetchPatientAppointments('upcoming'));
+  }, [dispatch]);
 
   // Poll for new messages when chat is open
   useEffect(() => {
@@ -259,7 +226,6 @@ const PatientProfile = () => {
           text-decoration: none;
           outline: none;
           box-sizing: border-box;
-          transition: all linear .2s;
         }
 
         .patient-profile-container {
@@ -285,6 +251,7 @@ const PatientProfile = () => {
 
         header a {
           color: var(--black);
+          transition: color 0.2s ease;
         }
 
         header a:hover {
@@ -316,6 +283,7 @@ const PatientProfile = () => {
           color: var(--black);
           padding: 0.5rem 1rem;
           border-radius: 4px;
+          transition: color 0.2s ease, background-color 0.2s ease;
         }
 
         header .navbar ul li a:hover {
@@ -405,7 +373,7 @@ const PatientProfile = () => {
           background: rgba(0, 0, 0, 0.1);
           border-radius: 50%;
           padding: 8px 12px;
-          transition: 0.3s;
+          transition: background 0.3s ease, color 0.3s ease;
           z-index: 10;
         }
 
@@ -428,6 +396,7 @@ const PatientProfile = () => {
           display: block;
           margin-left: auto;
           margin-right: auto;
+          transition: background 0.2s ease, color 0.2s ease, border 0.2s ease;
         }
 
         .button:hover {
@@ -466,6 +435,7 @@ const PatientProfile = () => {
           font-size: 1.4rem;
           margin-top: 8px;
           margin-right: 8px;
+          transition: background 0.2s ease;
         }
         .cancel-btn:hover {
           background: #cc0000;
@@ -481,6 +451,7 @@ const PatientProfile = () => {
           font-size: 1.4rem;
           margin-top: 8px;
           margin-right: 8px;
+          transition: background-color 0.2s ease;
         }
 
         .chat-btn:hover {
@@ -687,15 +658,7 @@ const PatientProfile = () => {
 
         <div className="profile-container">
           <div className="profile-header">
-            <div className="profile-picture">
-              <img 
-                src={patient?.profilePhoto || '/images/default-patient.svg'} 
-                alt="Patient Profile" 
-                onError={(e) => {
-                  e.target.src = '/images/default-patient.svg';
-                }}
-              />
-            </div>
+           
             <div className="profile-info">
               {profileLoading ? (
                 <div className="loader"></div>
@@ -710,6 +673,20 @@ const PatientProfile = () => {
                   <p id="patientEmail">Email: {patient.email}</p>
                   <p id="patientMobile">Mobile: {patient.mobile}</p>
                   <p id="patientAddress">Address: {patient.address}</p>
+                  {patient.dateOfBirth && (
+                    <p id="patientDOB">
+                      Date of Birth: {new Date(patient.dateOfBirth).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </p>
+                  )}
+                  {patient.gender && (
+                    <p id="patientGender">
+                      Gender: {patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1)}
+                    </p>
+                  )}
                 </>
               ) : (
                 <p>No profile data available.</p>
@@ -721,12 +698,12 @@ const PatientProfile = () => {
           <div className="appointment-history">
             <h2>Previous Appointments</h2>
             <div id="previousAppointments">
-              {loading.previous ? (
+              {loading ? (
                 <div className="loader"></div>
-              ) : errors.previous ? (
+              ) : error ? (
                 <div className="error-message">
-                  <p>Failed to load previous appointments: {errors.previous}</p>
-                  <button className="retry-btn" onClick={() => fetchAppointments('previous')}>
+                  <p>Failed to load previous appointments: {error}</p>
+                  <button className="retry-btn" onClick={() => dispatch(fetchPatientAppointments('previous'))}>
                     Retry
                   </button>
                 </div>
@@ -760,12 +737,12 @@ const PatientProfile = () => {
           <div className="future-appointments">
             <h2>Upcoming Appointments</h2>
             <div id="upcomingAppointments">
-              {loading.upcoming ? (
+              {loading ? (
                 <div className="loader"></div>
-              ) : errors.upcoming ? (
+              ) : error ? (
                 <div className="error-message">
-                  <p>Failed to load upcoming appointments: {errors.upcoming}</p>
-                  <button className="retry-btn" onClick={() => fetchAppointments('upcoming')}>
+                  <p>Failed to load upcoming appointments: {error}</p>
+                  <button className="retry-btn" onClick={() => dispatch(fetchPatientAppointments('upcoming'))}>
                     Retry
                   </button>
                 </div>
@@ -799,7 +776,7 @@ const PatientProfile = () => {
                             </button>
                           )}
                           <button 
-                            onClick={() => cancelAppointment(appointment.id)} 
+                            onClick={() => handleCancelAppointment(appointment.id)} 
                             className="cancel-btn"
                           >
                             Cancel
@@ -836,7 +813,7 @@ const PatientProfile = () => {
                 >
                   {msg.isFile ? (
                     <a 
-                      href={`/chat/download/${msg.fileName}`}
+                      href={`http://localhost:3002/chat/download/${msg.fileName}`}
                       style={{ color: 'inherit', textDecoration: 'none' }}
                     >
                       📎 {msg.fileName} (Download)
