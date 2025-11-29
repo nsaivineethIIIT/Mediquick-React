@@ -1,10 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import '../../assets/css/DoctorDashboard.css';
+import { Link } from 'react-router-dom';
+import { useDoctor } from '../../context/DoctorContext';
+import {
+  fetchDoctorAppointments,
+  updateAppointmentStatus,
+  fetchBookedSlots,
+  blockSlot
+} from '../../store/slices/appointmentSlice';
 
 const DoctorDashboard = () => {
-  const [doctor, setDoctor] = useState(null);
-  const [upcomingAppointments, setUpcomingAppointments] = useState([]);
-  const [previousAppointments, setPreviousAppointments] = useState([]);
+  const { doctor } = useDoctor();
+  const dispatch = useDispatch();
+  
+  // Redux state
+  const {
+    doctorAppointments,
+    doctorAppointmentsLoading,
+    bookedSlots,
+    slotsLoading: loadingSlots
+  } = useSelector((state) => state.appointments);
+
+  const upcomingAppointments = doctorAppointments.upcoming;
+  const previousAppointments = doctorAppointments.previous;
+  
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [financeData, setFinanceData] = useState([]);
@@ -13,8 +33,6 @@ const DoctorDashboard = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
   const [fileInput, setFileInput] = useState(null);
-  const [bookedSlots, setBookedSlots] = useState({});
-  const [loadingSlots, setLoadingSlots] = useState(false);
 
   const chatMessagesRef = useRef(null);
   const messagePollingIntervalRef = useRef(null);
@@ -31,7 +49,7 @@ const DoctorDashboard = () => {
 
   useEffect(() => {
     loadDoctorData();
-    loadAppointments();
+    dispatch(fetchDoctorAppointments());
     loadFinanceData();
     initializeSlotManagement();
 
@@ -40,7 +58,7 @@ const DoctorDashboard = () => {
         clearInterval(messagePollingIntervalRef.current);
       }
     };
-  }, []);
+  }, [dispatch]);
 
   useEffect(() => {
     if (chatMessagesRef.current) {
@@ -75,32 +93,7 @@ const DoctorDashboard = () => {
     }
   };
 
-  const loadAppointments = async () => {
-    try {
-      const response = await fetch('http://localhost:3002/appointment/doctor/appointments', fetchConfig);
-      if (!response.ok) {
-        if (response.status === 401) {
-          window.location.href = '/doctor/form?error=login_required';
-          return;
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      setUpcomingAppointments(data.upcoming || []);
-      setPreviousAppointments(data.previous || []);
-      
-      // Fallback: Extract doctorId from appointments if doctor not set
-      if (!doctor && (data.upcoming?.length > 0 || data.previous?.length > 0)) {
-        const firstAppt = data.upcoming[0] || data.previous[0];
-        if (firstAppt.doctorId) {
-          setDoctor({ _id: firstAppt.doctorId });
-          console.log('Doctor ID extracted from appointments:', firstAppt.doctorId);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading appointments:', error);
-    }
-  };
+  // Removed - now using Redux fetchDoctorAppointments
 
   const loadFinanceData = async () => {
     try {
@@ -126,66 +119,22 @@ const DoctorDashboard = () => {
       return;
     }
     
-    try {
-      setLoadingSlots(true);
-      console.log('Fetching booked slots for date:', date, 'doctorId:', doctor._id);
-      const response = await fetch(
-        `http://localhost:3002/appointment/api/booked-slots?doctorId=${doctor._id}&date=${date}`,
-        fetchConfig
-      );
-      
-      console.log('Booked slots response status:', response.status);
-      if (response.ok) {
-        const bookedSlotsForDate = await response.json();
-        console.log('Booked slots received:', bookedSlotsForDate);
-        setBookedSlots(prev => ({
-          ...prev,
-          [date]: bookedSlotsForDate || []
-        }));
-      } else {
-        console.error('Failed to fetch booked slots:', response.status);
-        setBookedSlots(prev => ({
-          ...prev,
-          [date]: []
-        }));
-      }
-    } catch (error) {
-      console.error('Error loading booked slots:', error);
-      setBookedSlots(prev => ({
-        ...prev,
-        [date]: []
-      }));
-    } finally {
-      setLoadingSlots(false);
-    }
+    console.log('Fetching booked slots for date:', date, 'doctorId:', doctor._id);
+    dispatch(fetchBookedSlots({ doctorId: doctor._id, date }));
   };
 
-  const updateAppointment = async (appointmentId, status) => {
+  const handleUpdateAppointment = async (appointmentId, status) => {
     try {
-      const response = await fetch(`http://localhost:3002/appointment/${appointmentId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status }),
-        credentials: 'include'
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        alert(`Appointment ${status} successfully`);
-        loadAppointments();
-        loadFinanceData();
-        if (selectedDate) {
-          loadBookedSlots(selectedDate);
-        }
-      } else {
-        alert(result.error || 'Failed to update appointment');
+      await dispatch(updateAppointmentStatus({ appointmentId, status })).unwrap();
+      alert(`Appointment ${status} successfully`);
+      dispatch(fetchDoctorAppointments());
+      loadFinanceData();
+      if (selectedDate) {
+        loadBookedSlots(selectedDate);
       }
     } catch (error) {
       console.error('Error updating appointment:', error);
-      alert('Failed to update appointment. Please try again.');
+      alert(error || 'Failed to update appointment. Please try again.');
     }
   };
 
@@ -217,7 +166,8 @@ const DoctorDashboard = () => {
   const getAvailableSlots = () => {
     const now = new Date();
     const isToday = selectedDate === new Date().toISOString().split('T')[0];
-    const bookedSlotsForDate = bookedSlots[selectedDate] || [];
+    const key = doctor?._id ? `${doctor._id}-${selectedDate}` : selectedDate;
+    const bookedSlotsForDate = bookedSlots[key] || [];
     console.log('Checking slots for date:', selectedDate, 'Booked slots:', bookedSlotsForDate);
 
     const filterSlots = (slots) => {
@@ -266,7 +216,7 @@ const DoctorDashboard = () => {
     }
   };
 
-  const blockSlot = async () => {
+  const handleBlockSlot = async () => {
     if (!selectedDate || !selectedTime) {
       alert('Please select both a date and time slot');
       return;
@@ -283,31 +233,17 @@ const DoctorDashboard = () => {
 
     if (confirm(`Are you sure you want to block the slot on ${selectedDate} at ${selectedTime}?`)) {
       try {
-        const response = await fetch('http://localhost:3002/appointment/api/block-slot', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            date: selectedDate,
-            time: selectedTime,
-            doctorId: doctor?._id
-          }),
-          credentials: 'include'
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-          alert('Slot blocked successfully');
-          loadBookedSlots(selectedDate);
-          setSelectedTime('');
-        } else {
-          alert(result.error || 'Failed to block slot');
-        }
+        await dispatch(blockSlot({
+          date: selectedDate,
+          time: selectedTime,
+          doctorId: doctor?._id
+        })).unwrap();
+        alert('Slot blocked successfully');
+        loadBookedSlots(selectedDate);
+        setSelectedTime('');
       } catch (error) {
         console.error('Error blocking slot:', error);
-        alert('Failed to block slot. Please try again.');
+        alert(error || 'Failed to block slot. Please try again.');
       }
     }
   };
@@ -439,9 +375,17 @@ const DoctorDashboard = () => {
 
   const availableSlots = getAvailableSlots();
 
+  const getProfileImageUrl = () => {
+    if (!doctor?.profilePhoto) return '/images/default-doctor.svg';
+    const photo = doctor.profilePhoto;
+    if (/^(https?:|data:|blob:)/i.test(photo)) return photo;
+    if (photo.startsWith('/')) return `http://localhost:3002${photo}`;
+    return `http://localhost:3002/${photo}`;
+  };
+
   return (
     <div className="doctor-dashboard">
-      <header className="dashboard-header">
+      <header>
         <a href="#" className="logo">
           <span>M</span>edi<span>Q</span>uick
         </a>
@@ -449,27 +393,30 @@ const DoctorDashboard = () => {
           <ul>
             <li><a href="#upcoming">Upcoming Appointments</a></li>
             <li><a href="#previous">Previous Appointments</a></li>
-            <li><a href="/doctor/generate-prescriptions">Generate Prescriptions</a></li>
-            <li><a href="/doctor/prescriptions">See Prescriptions</a></li>
+            <li><Link to="/doctor/generate-prescriptions">Generate Prescriptions</Link></li>
+            <li><Link to="/doctor/prescriptions">See Prescriptions</Link></li>
             <li><a href="#slot">Slot Management</a></li>
             <li><a href="#finance">Finance</a></li>
             <li><a href="/logout">LogOut</a></li>
-            <a href="/doctor/profile">
-              <img
-                id="dashboardProfilePhotoImg"
-                src={doctor?.profilePhoto || '/images/default-doctor.svg'}
-                alt="Profile Image"
-                height="30px"
-                width="30px"
-                style={{ borderRadius: '50%', objectFit: 'cover' }}
-              />
-            </a>
           </ul>
         </nav>
+        {doctor && (
+          <Link to="/doctor/profile" className="profile-link">
+            <img 
+              src={getProfileImageUrl()} 
+              alt={doctor.name || 'Doctor'} 
+              className="header-profile-image"
+              onError={(e) => { e.target.src = '/images/default-doctor.svg'; }}
+            />
+          </Link>
+        )}
         <div className="fas fa-bars"></div>
       </header>
-
+      
       <section id="upcoming" className="about">
+         {doctor && doctor.name && (
+        <h1 className="welcome-message">Welcome, {doctor.name}!</h1>
+      )}
         <div className="close-btn" onClick={() => window.location.href = "/doctor/dashboard"}>
           <i className="fas fa-times"></i>
         </div>
@@ -488,13 +435,13 @@ const DoctorDashboard = () => {
                 <div className="action-buttons">
                   {appt.status === 'pending' && (
                     <>
-                      <button onClick={() => updateAppointment(appt._id, 'confirmed')}>Confirm</button>
-                      <button onClick={() => updateAppointment(appt._id, 'cancelled')}>Cancel</button>
+                      <button onClick={() => handleUpdateAppointment(appt._id, 'confirmed')}>Confirm</button>
+                      <button onClick={() => handleUpdateAppointment(appt._id, 'cancelled')}>Cancel</button>
                     </>
                   )}
                   {appt.status === 'confirmed' && (
                     <>
-                      <button onClick={() => updateAppointment(appt._id, 'completed')}>Mark Complete</button>
+                      <button onClick={() => handleUpdateAppointment(appt._id, 'completed')}>Mark Complete</button>
                       <button onClick={() => openChat(appt._id)} className="chat-btn">Chat with Patient</button>
                     </>
                   )}
@@ -525,7 +472,7 @@ const DoctorDashboard = () => {
                     </p>
                     {appt.status === 'confirmed' && (
                         <div className="action-buttons">
-                            <button onClick={() => updateAppointment(appt._id, 'completed')}>
+                            <button onClick={() => handleUpdateAppointment(appt._id, 'completed')}>
                                 Mark Complete
                             </button>
                             <button onClick={() => openChat(appt._id)} className="chat-btn">
@@ -637,7 +584,7 @@ const DoctorDashboard = () => {
 
             <button 
               className="button block-slot-btn" 
-              onClick={blockSlot}
+              onClick={handleBlockSlot}
               disabled={!selectedDate || !selectedTime}
             >
               Block Selected Slot
@@ -696,7 +643,7 @@ const DoctorDashboard = () => {
       </section>
 
       {showChatModal && (
-        <div id="chatModal" className="modal">
+        <div id="chatModal" className="modal" style={{ display: 'block' }}>
           <div className="modal-content">
             <span className="close" onClick={closeChat}>&times;</span>
             <h2>Chat with Patient</h2>
@@ -708,7 +655,7 @@ const DoctorDashboard = () => {
                 >
                   {msg.isFile ? (
                     <a
-                      href={`/chat/download/${msg.fileName}`}
+                      href={`http://localhost:3002/chat/download/${msg.fileName}`}
                       style={{ color: 'inherit', textDecoration: 'none' }}
                     >
                       📎 {msg.fileName} (Download)

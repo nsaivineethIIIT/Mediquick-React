@@ -1,14 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import '../../assets/css/DoctorProfilePatient.css';
+import {
+    fetchDoctorProfile,
+    fetchBookedSlots,
+    bookAppointment,
+    clearBookingStatus,
+    clearDoctorProfile
+} from '../../store/slices/appointmentSlice';
 
 const DoctorProfilePatient = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
-    const [doctor, setDoctor] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const dispatch = useDispatch();
+    
+    // Redux state
+    const {
+        selectedDoctor: doctor,
+        doctorLoading: loading,
+        doctorError: error,
+        bookedSlots,
+        slotsLoading,
+        bookingLoading: booking,
+        bookingSuccess,
+        bookingError
+    } = useSelector((state) => state.appointments);
+    
     const [selectedDate, setSelectedDate] = useState('');
     const [selectedTime, setSelectedTime] = useState('');
     const [availableSlots, setAvailableSlots] = useState({
@@ -16,7 +35,6 @@ const DoctorProfilePatient = () => {
         afternoon: [],
         evening: []
     });
-    const [booking, setBooking] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState('');
 
@@ -52,127 +70,105 @@ const DoctorProfilePatient = () => {
     };
 
     useEffect(() => {
-        fetchDoctorProfile();
-    }, [id]);
+        dispatch(fetchDoctorProfile(id));
+        return () => {
+            dispatch(clearDoctorProfile());
+            dispatch(clearBookingStatus());
+        };
+    }, [id, dispatch]);
 
     useEffect(() => {
         if (selectedDate) {
+            // Fetch booked slots when date changes
+            dispatch(fetchBookedSlots({ 
+                doctorId: id, 
+                date: selectedDate, 
+                type: isOnlineConsultation ? 'online' : 'offline' 
+            }));
+        }
+    }, [selectedDate, id, isOnlineConsultation, dispatch]);
+
+    useEffect(() => {
+        // Update available slots when bookedSlots or selectedDate changes
+        if (selectedDate) {
             updateSlots(new Date(selectedDate));
         }
-    }, [selectedDate]);
+    }, [selectedDate, bookedSlots]);
 
     useEffect(() => {
         console.log("Payment modal state changed:", showPaymentModal);
     }, [showPaymentModal]);
 
-    const fetchDoctorProfile = async () => {
-        try {
-            setLoading(true);
-            setError('');
-            
-            const response = await fetch(`http://localhost:3002/patient/api/doctor/${id}`, {
-                credentials: 'include'
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-            
-            const doctorData = await response.json();
-            if (!doctorData || typeof doctorData !== 'object') {
-                throw new Error('Invalid doctor data received');
-            }
-            // Ensure reviews is an array, default to empty if undefined
-            const safeDoctorData = {
-                ...doctorData,
-                reviews: Array.isArray(doctorData.reviews) ? doctorData.reviews : []
-            };
-            setDoctor(safeDoctorData);
-            
-            if (dates.length > 0) {
-                setSelectedDate(dates[0].value);
-            }
-        } catch (err) {
-            console.error('Error fetching doctor profile:', err);
-            setError('Failed to load doctor profile. Using mock data as fallback.');
-            setDoctor({
-                id: id,
-                name: "Demo Doctor",
-                specialization: "General Physician",
-                experience: "5+ years",
-                qualifications: "MD",
-                languages: "English, Hindi",
-                location: "Medical City",
-                about: "Experienced doctor providing quality healthcare services.",
-                consultationFee: isOnlineConsultation ? 500 : 1000,
-                image: "https://icons.veryicon.com/png/o/healthcate-medical/orange-particle/doctor-20.png",
-                reviews: [
-                    { patientName: 'Rahul', comment: 'Excellent doctor, very patient and understanding.' },
-                    { patientName: 'Priya', comment: 'Great diagnosis and treatment plan.' }
-                ]
-            });
-            if (dates.length > 0) {
-                setSelectedDate(dates[0].value);
-            }
-        } finally {
-            setLoading(false);
+    useEffect(() => {
+        if (bookingSuccess) {
+            setShowPaymentModal(false);
+            alert(`Appointment booked successfully! ${isOnlineConsultation ? 'Online Consultation' : 'Clinic Visit'}\nPayment Method: ${paymentMethod}`);
+            setTimeout(() => {
+                navigate('/patient/dashboard');
+            }, 2000);
         }
-    };
+    }, [bookingSuccess, isOnlineConsultation, paymentMethod, navigate]);
 
-    const updateSlots = async (selectedDate) => {
+    useEffect(() => {
+        if (bookingError) {
+            alert(bookingError);
+            // Refresh slots if booking failed
+            if (selectedDate) {
+                dispatch(fetchBookedSlots({ 
+                    doctorId: id, 
+                    date: selectedDate, 
+                    type: isOnlineConsultation ? 'online' : 'offline' 
+                }));
+            }
+        }
+    }, [bookingError, dispatch, id, selectedDate, isOnlineConsultation]);
+
+    useEffect(() => {
+        if (doctor && dates.length > 0 && !selectedDate) {
+            setSelectedDate(dates[0].value);
+        }
+    }, [doctor]);
+
+    const updateSlots = (selectedDate) => {
         const now = new Date();
         const isToday = selectedDate.toDateString() === now.toDateString();
         const dateStr = selectedDate.toISOString().split("T")[0];
         
-        try {
-            const response = await fetch(`http://localhost:3002/appointment/api/booked-slots?doctorId=${id}&date=${dateStr}&type=${isOnlineConsultation ? 'online' : 'offline'}`, {
-                credentials: 'include'
+        // Get booked slots from Redux state (already fetched by useEffect)
+        const key = `${id}-${dateStr}`;
+        const bookedSlotsForDate = bookedSlots[key] || [];
+        
+        const filterSlots = (slots) => {
+            return slots.map(slot => {
+                const isBooked = bookedSlotsForDate.includes(slot);
+                let isPast = false;
+                
+                if (isToday) {
+                    const [time, period] = slot.split(' ');
+                    let [hours, minutes] = time.split(':').map(Number);
+                    
+                    if (period === 'PM' && hours !== 12) hours += 12;
+                    if (period === 'AM' && hours === 12) hours = 0;
+                    
+                    const slotTime = new Date(selectedDate);
+                    slotTime.setHours(hours, minutes, 0, 0);
+                    isPast = slotTime <= now;
+                }
+                
+                return {
+                    time: slot,
+                    booked: isBooked,
+                    past: isPast,
+                    disabled: isBooked || isPast
+                };
             });
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-            const bookedSlots = await response.json();
-            
-            const filterSlots = (slots) => {
-                return slots.map(slot => {
-                    const isBooked = bookedSlots.includes(slot);
-                    let isPast = false;
-                    
-                    if (isToday) {
-                        const [time, period] = slot.split(' ');
-                        let [hours, minutes] = time.split(':').map(Number);
-                        
-                        if (period === 'PM' && hours !== 12) hours += 12;
-                        if (period === 'AM' && hours === 12) hours = 0;
-                        
-                        const slotTime = new Date(selectedDate);
-                        slotTime.setHours(hours, minutes, 0, 0);
-                        isPast = slotTime <= now;
-                    }
-                    
-                    return {
-                        time: slot,
-                        booked: isBooked,
-                        past: isPast,
-                        disabled: isBooked || isPast
-                    };
-                });
-            };
+        };
 
-            setAvailableSlots({
-                morning: filterSlots(allSlots.morning),
-                afternoon: filterSlots(allSlots.afternoon),
-                evening: filterSlots(allSlots.evening)
-            });
-        } catch (error) {
-            console.error("Error fetching slots:", error);
-            // Fallback to showing all slots as available if API fails
-            setAvailableSlots({
-                morning: allSlots.morning.map(slot => ({ time: slot, booked: false, past: false, disabled: false })),
-                afternoon: allSlots.afternoon.map(slot => ({ time: slot, booked: false, past: false, disabled: false })),
-                evening: allSlots.evening.map(slot => ({ time: slot, booked: false, past: false, disabled: false }))
-            });
-        }
+        setAvailableSlots({
+            morning: filterSlots(allSlots.morning),
+            afternoon: filterSlots(allSlots.afternoon),
+            evening: filterSlots(allSlots.evening)
+        });
     };
 
     const handleDateSelect = (dateValue) => {
@@ -203,44 +199,15 @@ const DoctorProfilePatient = () => {
             return;
         }
 
-        try {
-            setBooking(true);
-            
-            const response = await fetch('http://localhost:3002/appointment/appointments', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    doctorId: id,
-                    date: selectedDate,
-                    time: selectedTime.replace(/ \(.*\)$/, ''),
-                    type: isOnlineConsultation ? 'online' : 'offline',
-                    notes: '',
-                    modeOfPayment: paymentMethod // Include payment method in request
-                })
-            });
-            
-            const result = await response.json();
-            
-            if (response.ok) {
-                setShowPaymentModal(false);
-                alert(`Appointment booked successfully! ${isOnlineConsultation ? 'Online Consultation' : 'Clinic Visit'}\nPayment Method: ${paymentMethod}`);
-                setTimeout(() => {
-                    navigate('/patient/dashboard');
-                }, 2000);
-            } else {
-                alert(result.error || 'Failed to book appointment');
-                // Refresh slots if booking failed
-                updateSlots(new Date(selectedDate));
-            }
-        } catch (error) {
-            console.error('Error booking appointment:', error);
-            alert('Failed to book appointment. Please try again.');
-        } finally {
-            setBooking(false);
-        }
+        // Dispatch Redux action to book appointment
+        dispatch(bookAppointment({
+            doctorId: id,
+            date: selectedDate,
+            time: selectedTime.replace(/ \(.*\)$/, ''),
+            type: isOnlineConsultation ? 'online' : 'offline',
+            notes: '',
+            modeOfPayment: paymentMethod
+        }));
     };
 
     const handleCancelPayment = () => {
@@ -580,4 +547,4 @@ const DoctorProfilePatient = () => {
     );
 };
 
-export default DoctorProfilePatient;
+export default DoctorProfilePatient; 

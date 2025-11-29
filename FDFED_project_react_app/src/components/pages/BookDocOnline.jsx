@@ -1,88 +1,70 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import '../../assets/css/PatientBooking.css';
+import { usePatient } from '../../context/PatientContext';
+import {
+    fetchOnlineDoctors,
+    setSearchQuery,
+    setSpecializationFilter,
+    clearFilters
+} from '../../store/slices/appointmentSlice';
+
 const BookDocOnline = () => {
-    const [allDoctors, setAllDoctors] = useState([]);
-    const [filteredDoctors, setFilteredDoctors] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const { patient } = usePatient();
+    const dispatch = useDispatch();
     
-    // Filter states
-    const [searchQuery, setSearchQuery] = useState('');
-    const [specializationFilter, setSpecializationFilter] = useState('');
-    
-    // Available specializations
-    const [specializations, setSpecializations] = useState([]);
+    // Redux state
+    const {
+        onlineDoctors,
+        doctorsLoading: loading,
+        doctorsError: error,
+        filters
+    } = useSelector((state) => state.appointments);
 
     useEffect(() => {
-        fetchDoctors();
-    }, []);
+        dispatch(fetchOnlineDoctors());
+    }, [dispatch]);
 
-    useEffect(() => {
-        filterDoctors();
-    }, [searchQuery, specializationFilter, allDoctors]);
-
-    const fetchDoctors = async () => {
-        try {
-            setLoading(true);
-            setError('');
-            
-            const response = await fetch('http://localhost:3002/patient/api/doctors/online', {
-                credentials: 'include'
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const doctors = await response.json();
-            setAllDoctors(doctors);
-            
-            // Extract unique specializations
-            const uniqueSpecializations = [...new Set(
-                doctors.map(doc => doc.specialization || 'General Physician')
-            )];
-            setSpecializations(uniqueSpecializations);
-            
-        } catch (err) {
-            console.error('Error fetching doctors:', err);
-            setError('Failed to load doctors. Please try again later.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const filterDoctors = () => {
-        let filtered = allDoctors;
+    // Compute filtered doctors and available specializations
+    const { filteredDoctors, specializations } = useMemo(() => {
+        let filtered = onlineDoctors;
 
         // Apply specialization filter
-        if (specializationFilter) {
+        if (filters.specialization) {
             filtered = filtered.filter(doctor => 
-                (doctor.specialization || 'General Physician') === specializationFilter
+                (doctor.specialization || 'General Physician') === filters.specialization
             );
         }
 
         // Apply search query filter
-        if (searchQuery) {
+        if (filters.searchQuery) {
             filtered = filtered.filter(doctor => 
-                doctor.name.toLowerCase().includes(searchQuery.toLowerCase())
+                doctor.name.toLowerCase().includes(filters.searchQuery.toLowerCase())
             );
         }
 
-        setFilteredDoctors(filtered);
-    };
+        // Extract unique specializations
+        const uniqueSpecializations = [...new Set(
+            onlineDoctors.map(doc => doc.specialization || 'General Physician')
+        )];
+
+        return {
+            filteredDoctors: filtered,
+            specializations: uniqueSpecializations
+        };
+    }, [onlineDoctors, filters]);
 
     const handleSearchChange = (e) => {
-        setSearchQuery(e.target.value);
+        dispatch(setSearchQuery(e.target.value));
     };
 
     const handleSpecializationChange = (e) => {
-        setSpecializationFilter(e.target.value);
+        dispatch(setSpecializationFilter(e.target.value));
     };
 
-    const clearFilters = () => {
-        setSearchQuery('');
-        setSpecializationFilter('');
+    const handleClearFilters = () => {
+        dispatch(clearFilters());
     };
 
     return (
@@ -93,6 +75,11 @@ const BookDocOnline = () => {
                 </Link>
                 <nav className="navbar">
                     <ul>
+                        <li>
+              {patient && patient.name && (
+        <h1 className="welcome-message">Welcome, {patient.name}!</h1>
+      )}
+            </li>
                         <li><Link to="/about">About Us</Link></li>
                         <li><Link to="/faqs">FAQs</Link></li>
                         <li><Link to="/blogs">Blog</Link></li>
@@ -117,12 +104,12 @@ const BookDocOnline = () => {
                     <input 
                         type="text" 
                         placeholder="Search doctors by name..." 
-                        value={searchQuery}
+                        value={filters.searchQuery}
                         onChange={handleSearchChange}
                     />
                     <select 
                         className="filter-dropdown"
-                        value={specializationFilter}
+                        value={filters.specialization}
                         onChange={handleSpecializationChange}
                     >
                         <option value="">All Specializations</option>
@@ -130,7 +117,7 @@ const BookDocOnline = () => {
                             <option key={spec} value={spec}>{spec}</option>
                         ))}
                     </select>
-                    <button className="button" onClick={clearFilters}>
+                    <button className="button" onClick={handleClearFilters}>
                         Clear Filters
                     </button>
                 </div>
