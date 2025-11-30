@@ -1,129 +1,104 @@
 import React, { useState } from 'react';
-import '../../assets/css/AdminForm.css'; 
+import { useForm } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
+import '../../assets/css/AdminForm.css';
+
+// --- Yup Validation Schemas ---
+
+const passwordRule = yup
+  .string()
+  .required('Password is required')
+  .min(6, 'Password must be at least 6 characters')
+  .matches(/^(?=.*[A-Za-z])(?=.*\d)/, 'Password must contain at least one letter and one number');
+
+const emailRule = yup
+  .string()
+  .required('Email is required')
+  .matches(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please enter a valid email address');
+
+const loginSchema = yup.object().shape({
+  email: emailRule,
+  password: passwordRule,
+  securityCode: yup
+    .string()
+    .required('Security code is required')
+});
+
+const signupSchema = yup.object().shape({
+  name: yup
+    .string()
+    .required('Name is required')
+    .min(2, 'Name must be between 2 and 500 characters')
+    .max(500, 'Name must be between 2 and 500 characters')
+    .matches(/^(?=.*[A-Za-z])[A-Za-z0-9\s\-'.]+$/, 'Name must contain at least one letter and can include letters, numbers, spaces, hyphens, apostrophes, and periods'),
+  signupEmail: emailRule,
+  mobile: yup
+    .string()
+    .required('Mobile number is required')
+    .matches(/^\d{10}$/, 'Mobile number must be 10 digits'),
+  address: yup
+    .string()
+    .required('Address is required')
+    .min(5, 'Address must be at least 5 characters'),
+  signupPassword: passwordRule,
+  signupSecurityCode: yup
+    .string()
+    .required('Security code is required')
+});
+
+// --- React Component ---
 
 const AdminForm = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [formData, setFormData] = useState({
-    // Login form data
-    email: '',
-    password: '',
-    securityCode: '',
-    
-    // Signup form data
-    name: '',
-    signupEmail: '',
-    mobile: '',
-    address: '',
-    signupPassword: '',
-    signupSecurityCode: ''
-  });
-  
-  const [errors, setErrors] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
+  // Initialize react-hook-form with yup resolver for Login
+  const loginForm = useForm({
+    resolver: yupResolver(loginSchema),
+    // Changed to 'onChange' for real-time validation as the user types
+    mode: 'onChange', 
+    defaultValues: {
+      email: '',
+      password: '',
+      securityCode: ''
     }
-  };
+  });
 
-  // Validation functions
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
+  // Initialize react-hook-form with yup resolver for Signup
+  const signupForm = useForm({
+    resolver: yupResolver(signupSchema),
+    // Changed to 'onChange' for real-time validation as the user types
+    mode: 'onChange', 
+    defaultValues: {
+      name: '',
+      signupEmail: '',
+      mobile: '',
+      address: '',
+      signupPassword: '',
+      signupSecurityCode: ''
+    }
+  });
 
-  const validatePassword = (password) => {
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
-    return passwordRegex.test(password);
-  };
+  // Use the appropriate form based on isLogin state
+  // Errors object will update instantly due to mode: 'onChange'
+  const { register, handleSubmit, formState: { errors }, reset } = isLogin ? loginForm : signupForm;
 
-  const validateName = (name) => {
-    return name.length >= 2 && name.length <= 500;
-  };
+  // --- Form Submission Handlers ---
 
-  const validateMobile = (mobile) => {
-    const mobileRegex = /^\d{10}$/;
-    return mobileRegex.test(mobile);
-  };
-
-  const validateAddress = (address) => {
-    return address.length >= 5;
-  };
-
-  // Form validation
-  const validateLoginForm = () => {
-    const newErrors = {};
-    
-    if (!validateEmail(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-    
-    if (!validatePassword(formData.password)) {
-      newErrors.password = 'Password must be at least 6 characters with at least one letter and one number';
-    }
-    
-    if (!formData.securityCode) {
-      newErrors.securityCode = 'Security code is required';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const validateSignupForm = () => {
-    const newErrors = {};
-    
-    if (!validateName(formData.name)) {
-      newErrors.name = 'Name must be between 2 and 500 characters';
-    }
-    
-    if (!validateEmail(formData.signupEmail)) {
-      newErrors.signupEmail = 'Please enter a valid email address';
-    }
-    
-    if (!validateMobile(formData.mobile)) {
-      newErrors.mobile = 'Mobile number must be 10 digits';
-    }
-    
-    if (!validateAddress(formData.address)) {
-      newErrors.address = 'Address must be at least 5 characters';
-    }
-    
-    if (!validatePassword(formData.signupPassword)) {
-      newErrors.signupPassword = 'Password must be at least 6 characters with at least one letter and one number';
-    }
-    
-    if (!formData.signupSecurityCode) {
-      newErrors.signupSecurityCode = 'Security code is required';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // Form submission handlers
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const handleLogin = async (data) => {
     setErrorMessage('');
     setSuccessMessage('');
     
-    if (!validateLoginForm()) {
-      setErrorMessage('Please correct the errors in the form. Note that the password should be at least 6 characters long and contain at least one letter and one number, with no spaces.');
-      return;
+    // Custom error message for user
+    // No need to check for password error explicitly here as handleSubmit already ensures no form errors, 
+    // but keeping the logic for custom error visibility if formState has validation errors
+    if (loginForm.formState.errors.password) {
+        setErrorMessage('Please correct the errors in the form. Note that the password should be at least 6 characters long and contain at least one letter and one number, with no spaces.');
+        return;
     }
-    
+
     try {
       const response = await fetch('http://localhost:3002/admin/login', {
         method: 'POST',
@@ -132,21 +107,21 @@ const AdminForm = () => {
         },
         credentials: 'include',
         body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-          securityCode: formData.securityCode
+          email: data.email,
+          password: data.password,
+          securityCode: data.securityCode
         })
       });
       
-      const data = await response.json();
+      const result = await response.json();
       
       if (response.ok) {
         setSuccessMessage('Login successful! Redirecting...');
         setTimeout(() => {
-          window.location.href = data.redirect || '/admin/dashboard';
+          window.location.href = result.redirect || '/admin/dashboard';
         }, 1000);
       } else {
-        setErrorMessage(data.error + (data.details ? `: ${data.details}` : ''));
+        setErrorMessage(result.error + (result.details ? `: ${result.details}` : ''));
       }
     } catch (error) {
       setErrorMessage('Network error. Please check your connection and try again.');
@@ -154,16 +129,16 @@ const AdminForm = () => {
     }
   };
 
-  const handleSignup = async (e) => {
-    e.preventDefault();
+  const handleSignup = async (data) => {
     setErrorMessage('');
     setSuccessMessage('');
     
-    if (!validateSignupForm()) {
-      setErrorMessage('Please correct the errors in the form. Note that the password should be at least 6 characters long and contain at least one letter and one number, with no spaces.');
-      return;
+    // Custom error message for user
+    if (signupForm.formState.errors.signupPassword) {
+        setErrorMessage('Please correct the errors in the form. Note that the password should be at least 6 characters long and contain at least one letter and one number, with no spaces.');
+        return;
     }
-    
+
     try {
       const response = await fetch('http://localhost:3002/admin/signup', {
         method: 'POST',
@@ -171,32 +146,24 @@ const AdminForm = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: formData.name,
-          email: formData.signupEmail,
-          mobile: formData.mobile,
-          address: formData.address,
-          password: formData.signupPassword,
-          securityCode: formData.signupSecurityCode
+          name: data.name,
+          email: data.signupEmail,
+          mobile: data.mobile,
+          address: data.address,
+          password: data.signupPassword,
+          securityCode: data.signupSecurityCode
         })
       });
       
-      const data = await response.json();
+      const result = await response.json();
       
       if (response.ok) {
-        setSuccessMessage(data.message || 'Signup successful! Please login.');
+        setSuccessMessage(result.message || 'Signup successful! Please login.');
         setIsLogin(true);
         // Reset signup form
-        setFormData(prev => ({
-          ...prev,
-          name: '',
-          signupEmail: '',
-          mobile: '',
-          address: '',
-          signupPassword: '',
-          signupSecurityCode: ''
-        }));
+        signupForm.reset();
       } else {
-        setErrorMessage(data.error + (data.details ? `: ${data.details}` : ''));
+        setErrorMessage(result.error + (result.details ? `: ${result.details}` : ''));
       }
     } catch (error) {
       setErrorMessage('Network error. Please check your connection and try again.');
@@ -208,7 +175,9 @@ const AdminForm = () => {
     setIsLogin(!isLogin);
     setErrorMessage('');
     setSuccessMessage('');
-    setErrors({});
+    // Reset both forms when toggling
+    loginForm.reset();
+    signupForm.reset();
   };
 
   const closeProfile = () => {
@@ -237,51 +206,42 @@ const AdminForm = () => {
         </div>
       )}
 
+      {/* RHF's handleSubmit handles validation before calling the submit handler */}
       {isLogin ? (
-        <form className="profile-form" onSubmit={handleLogin}>
+        <form className="profile-form" onSubmit={handleSubmit(handleLogin)}>
           <input
             type="email"
-            name="email"
             placeholder="Email"
-            value={formData.email}
-            onChange={handleInputChange}
-            onBlur={() => {
-              if (formData.email && !validateEmail(formData.email)) {
-                setErrors(prev => ({ ...prev, email: 'Please enter a valid email address' }));
-              }
-            }}
+            // Register field with RHF
+            {...register('email')}
             className={errors.email ? 'error-input' : ''}
             required
           />
-          {errors.email && <span className="field-error">{errors.email}</span>}
+          {/* Display RHF error message instantly */}
+          {errors.email && <span className="field-error">{errors.email.message}</span>}
           
           <input
             type="password"
-            name="password"
             placeholder="Password"
-            value={formData.password}
-            onChange={handleInputChange}
-            onBlur={() => {
-              if (formData.password && !validatePassword(formData.password)) {
-                setErrors(prev => ({ ...prev, password: 'Password must be at least 6 characters with at least one letter and one number' }));
-              }
-            }}
+            // Register field with RHF
+            {...register('password')}
             className={errors.password ? 'error-input' : ''}
             required
           />
-          {errors.password && <span className="field-error">{errors.password}</span>}
+          {/* Display RHF error message instantly */}
+          {errors.password && <span className="field-error">{errors.password.message}</span>}
           
           <input
             type="password"
-            name="securityCode"
             placeholder="Security Code"
-            value={formData.securityCode}
-            onChange={handleInputChange}
+            // Register field with RHF
+            {...register('securityCode')}
             className={errors.securityCode ? 'error-input' : ''}
             autoComplete="off"
             required
           />
-          {errors.securityCode && <span className="field-error">{errors.securityCode}</span>}
+          {/* Display RHF error message instantly */}
+          {errors.securityCode && <span className="field-error">{errors.securityCode.message}</span>}
           
           <button type="submit" className="button">Login</button>
           <p className="toggle" onClick={toggleForm}>
@@ -289,100 +249,75 @@ const AdminForm = () => {
           </p>
         </form>
       ) : (
-        <form className="profile-form" onSubmit={handleSignup}>
+        <form className="profile-form" onSubmit={handleSubmit(handleSignup)}>
           <input
             type="text"
-            name="name"
             placeholder="Full Name"
-            value={formData.name}
-            onChange={handleInputChange}
-            onBlur={() => {
-              if (formData.name && !validateName(formData.name)) {
-                setErrors(prev => ({ ...prev, name: 'Name must be between 2 and 500 characters' }));
-              }
-            }}
+            // Register field with RHF
+            {...register('name')}
             className={errors.name ? 'error-input' : ''}
             required
           />
-          {errors.name && <span className="field-error">{errors.name}</span>}
+          {/* Display RHF error message instantly */}
+          {errors.name && <span className="field-error">{errors.name.message}</span>}
           
           <input
             type="email"
-            name="signupEmail"
             placeholder="Email"
-            value={formData.signupEmail}
-            onChange={handleInputChange}
-            onBlur={() => {
-              if (formData.signupEmail && !validateEmail(formData.signupEmail)) {
-                setErrors(prev => ({ ...prev, signupEmail: 'Please enter a valid email address' }));
-              }
-            }}
+            // Register field with RHF
+            {...register('signupEmail')}
             className={errors.signupEmail ? 'error-input' : ''}
             required
           />
-          {errors.signupEmail && <span className="field-error">{errors.signupEmail}</span>}
+          {/* Display RHF error message instantly */}
+          {errors.signupEmail && <span className="field-error">{errors.signupEmail.message}</span>}
           
           <input
             type="tel"
-            name="mobile"
             placeholder="Mobile"
-            value={formData.mobile}
-            onChange={handleInputChange}
-            onBlur={() => {
-              if (formData.mobile && !validateMobile(formData.mobile)) {
-                setErrors(prev => ({ ...prev, mobile: 'Mobile number must be 10 digits' }));
-              }
-            }}
+            // Register field with RHF
+            {...register('mobile')}
             className={errors.mobile ? 'error-input' : ''}
             pattern="[0-9]{10}"
             required
           />
-          {errors.mobile && <span className="field-error">{errors.mobile}</span>}
+          {/* Display RHF error message instantly */}
+          {errors.mobile && <span className="field-error">{errors.mobile.message}</span>}
           
           <input
             type="text"
-            name="address"
             placeholder="Address"
-            value={formData.address}
-            onChange={handleInputChange}
-            onBlur={() => {
-              if (formData.address && !validateAddress(formData.address)) {
-                setErrors(prev => ({ ...prev, address: 'Address must be at least 5 characters' }));
-              }
-            }}
+            // Register field with RHF
+            {...register('address')}
             className={errors.address ? 'error-input' : ''}
             required
           />
-          {errors.address && <span className="field-error">{errors.address}</span>}
+          {/* Display RHF error message instantly */}
+          {errors.address && <span className="field-error">{errors.address.message}</span>}
           
           <input
             type="password"
-            name="signupPassword"
             placeholder="Create your password"
-            value={formData.signupPassword}
-            onChange={handleInputChange}
-            onBlur={() => {
-              if (formData.signupPassword && !validatePassword(formData.signupPassword)) {
-                setErrors(prev => ({ ...prev, signupPassword: 'Password must be at least 6 characters with at least one letter and one number' }));
-              }
-            }}
+            // Register field with RHF
+            {...register('signupPassword')}
             className={errors.signupPassword ? 'error-input' : ''}
             minLength="6"
             required
           />
-          {errors.signupPassword && <span className="field-error">{errors.signupPassword}</span>}
+          {/* Display RHF error message instantly */}
+          {errors.signupPassword && <span className="field-error">{errors.signupPassword.message}</span>}
           
           <input
             type="password"
-            name="signupSecurityCode"
             placeholder="Security Code"
-            value={formData.signupSecurityCode}
-            onChange={handleInputChange}
+            // Register field with RHF
+            {...register('signupSecurityCode')}
             className={errors.signupSecurityCode ? 'error-input' : ''}
             autoComplete="off"
             required
           />
-          {errors.signupSecurityCode && <span className="field-error">{errors.signupSecurityCode}</span>}
+          {/* Display RHF error message instantly */}
+          {errors.signupSecurityCode && <span className="field-error">{errors.signupSecurityCode.message}</span>}
           
           <button type="submit" className="button">Sign Up</button>
           <p className="toggle" onClick={toggleForm}>
