@@ -1,26 +1,39 @@
 import React, { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { 
+  fetchAdminAppointments,
+  selectAdminAppointments,
+  selectUniqueDoctors,
+  selectUniqueSpecializations,
+  selectDoctorEarnings,
+  selectSpecializationEarnings,
+  selectAppointmentsByDateRange,
+  selectAdminLoading
+} from '../../store/slices/adminSlice';
 import Footer from '../common/Footer';
 import '../../assets/css/AdminSearchData.css';
 
 const AdminSearchData = () => {
-  const [doctors, setDoctors] = useState([]);
-  const [specializations, setSpecializations] = useState([]);
-  const [doctorEarnings, setDoctorEarnings] = useState([]);
-  const [specializationEarnings, setSpecializationEarnings] = useState([]);
-  const [dateRangeAppointments, setDateRangeAppointments] = useState([]);
+  const dispatch = useDispatch();
+  
+  // Redux state
+  const appointments = useSelector(selectAdminAppointments);
+  const doctors = useSelector(selectUniqueDoctors);
+  const specializations = useSelector(selectUniqueSpecializations);
+  const adminLoading = useSelector(selectAdminLoading);
+  
+  // Local state for selections and filters
   const [selectedDoctor, setSelectedDoctor] = useState('');
   const [selectedSpecialization, setSelectedSpecialization] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [loading, setLoading] = useState({
-    doctors: false,
-    specializations: false,
-    doctorEarnings: false,
-    specializationEarnings: false,
-    dateRange: false
-  });
   const [error, setError] = useState('');
   const [isNavOpen, setIsNavOpen] = useState(false);
+  
+  // Compute derived data using Redux selectors
+  const doctorEarnings = useSelector(state => selectDoctorEarnings(state, selectedDoctor));
+  const specializationEarnings = useSelector(state => selectSpecializationEarnings(state, selectedSpecialization));
+  const dateRangeAppointments = useSelector(state => selectAppointmentsByDateRange(state, startDate, endDate));
 
   // Calculate totals
   const doctorTotals = doctorEarnings.reduce((acc, day) => ({
@@ -46,255 +59,41 @@ const AdminSearchData = () => {
     }).format(amount || 0);
   };
 
-  // Load doctors and specializations on component mount
+  // Load appointments on component mount (doctors and specializations are derived from appointments)
   useEffect(() => {
-    loadDoctors();
-    loadSpecializations();
-  }, []);
+    dispatch(fetchAdminAppointments());
+  }, [dispatch]);
 
   // Load available doctors
-  const loadDoctors = async () => {
-    try {
-      setLoading(prev => ({ ...prev, doctors: true }));
-      setError('');
-
-      const response = await fetch('http://localhost:3002/admin/api/appointments', {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const appointments = await response.json();
-      
-      // Extract unique doctors
-      const doctorMap = new Map();
-      appointments.forEach(appt => {
-        if (appt.doctorId && appt.doctorName) {
-          if (!doctorMap.has(appt.doctorId)) {
-            doctorMap.set(appt.doctorId, {
-              id: appt.doctorId,
-              name: appt.doctorName,
-              specialization: appt.specialization || 'General Physician'
-            });
-          }
-        }
-      });
-
-      setDoctors(Array.from(doctorMap.values()));
-    } catch (error) {
-      console.error('Error loading doctors:', error);
-      setError(`Failed to load doctors: ${error.message}`);
-    } finally {
-      setLoading(prev => ({ ...prev, doctors: false }));
-    }
-  };
-
-  // Load available specializations
-  const loadSpecializations = async () => {
-    try {
-      setLoading(prev => ({ ...prev, specializations: true }));
-      setError('');
-
-      const response = await fetch('http://localhost:3002/admin/api/appointments', {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const appointments = await response.json();
-      
-      // Extract unique specializations
-      const specSet = new Set();
-      appointments.forEach(appt => {
-        const spec = appt.specialization || 'General Physician';
-        specSet.add(spec);
-      });
-
-      setSpecializations(Array.from(specSet).sort());
-    } catch (error) {
-      console.error('Error loading specializations:', error);
-      setError(`Failed to load specializations: ${error.message}`);
-    } finally {
-      setLoading(prev => ({ ...prev, specializations: false }));
-    }
-  };
-
-  // Search doctor earnings
-  const searchDoctorEarnings = async () => {
+  // Validation functions (data now comes from Redux selectors)
+  const validateDoctorSearch = () => {
     if (!selectedDoctor) {
       alert('Please select a doctor');
-      return;
+      return false;
     }
-
-    try {
-      setLoading(prev => ({ ...prev, doctorEarnings: true }));
-      setError('');
-
-      const response = await fetch('http://localhost:3002/admin/api/appointments', {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const appointments = await response.json();
-
-      // Filter appointments for selected doctor
-      const doctorAppointments = appointments.filter(appt => 
-        appt.doctorId === selectedDoctor
-      );
-
-      // Group by date
-      const earningsByDate = {};
-      doctorAppointments.forEach(appt => {
-        const date = appt.date;
-        if (!earningsByDate[date]) {
-          earningsByDate[date] = {
-            date: date,
-            count: 0,
-            totalFees: 0,
-            totalRevenue: 0
-          };
-        }
-        
-        earningsByDate[date].count++;
-        earningsByDate[date].totalFees += appt.fee || 0;
-        earningsByDate[date].totalRevenue += appt.revenue || 0;
-      });
-
-      // Convert to array and sort by date (newest first)
-      const earningsArray = Object.values(earningsByDate).sort((a, b) => 
-        new Date(b.date) - new Date(a.date)
-      );
-
-      setDoctorEarnings(earningsArray);
-    } catch (error) {
-      console.error('Error searching doctor earnings:', error);
-      setError(`Failed to load doctor earnings: ${error.message}`);
-    } finally {
-      setLoading(prev => ({ ...prev, doctorEarnings: false }));
-    }
+    return true;
   };
 
-  // Search specialization earnings
-  const searchSpecializationEarnings = async () => {
+  const validateSpecializationSearch = () => {
     if (!selectedSpecialization) {
       alert('Please select a specialization');
-      return;
+      return false;
     }
-
-    try {
-      setLoading(prev => ({ ...prev, specializationEarnings: true }));
-      setError('');
-
-      const response = await fetch('http://localhost:3002/admin/api/appointments', {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const appointments = await response.json();
-
-      // Filter appointments for selected specialization
-      const specAppointments = appointments.filter(appt => 
-        (appt.specialization || 'General Physician') === selectedSpecialization
-      );
-
-      // Group by date
-      const earningsByDate = {};
-      specAppointments.forEach(appt => {
-        const date = appt.date;
-        if (!earningsByDate[date]) {
-          earningsByDate[date] = {
-            date: date,
-            count: 0,
-            totalFees: 0,
-            totalRevenue: 0
-          };
-        }
-        
-        earningsByDate[date].count++;
-        earningsByDate[date].totalFees += appt.fee || 0;
-        earningsByDate[date].totalRevenue += appt.revenue || 0;
-      });
-
-      // Convert to array and sort by date (newest first)
-      const earningsArray = Object.values(earningsByDate).sort((a, b) => 
-        new Date(b.date) - new Date(a.date)
-      );
-
-      setSpecializationEarnings(earningsArray);
-    } catch (error) {
-      console.error('Error searching specialization earnings:', error);
-      setError(`Failed to load specialization earnings: ${error.message}`);
-    } finally {
-      setLoading(prev => ({ ...prev, specializationEarnings: false }));
-    }
+    return true;
   };
 
-  // Search by date range
-  const searchByDateRange = async () => {
+  const validateDateRange = () => {
     if (!startDate || !endDate) {
       alert('Please select both start date and end date');
-      return;
+      return false;
     }
 
     if (new Date(startDate) > new Date(endDate)) {
       alert('Start date cannot be after end date');
-      return;
+      return false;
     }
-
-    try {
-      setLoading(prev => ({ ...prev, dateRange: true }));
-      setError('');
-
-      const response = await fetch('http://localhost:3002/admin/api/appointments', {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const appointments = await response.json();
-
-      // Filter appointments by date range
-      const filteredAppointments = appointments.filter(appt => {
-        const appointmentDate = new Date(appt.date);
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        return appointmentDate >= start && appointmentDate <= end;
-      });
-
-      setDateRangeAppointments(filteredAppointments);
-    } catch (error) {
-      console.error('Error searching by date range:', error);
-      setError(`Failed to load appointments: ${error.message}`);
-    } finally {
-      setLoading(prev => ({ ...prev, dateRange: false }));
-    }
+    
+    return true;
   };
 
   // Toggle mobile navigation
@@ -350,7 +149,7 @@ const AdminSearchData = () => {
             <select 
               value={selectedDoctor}
               onChange={(e) => setSelectedDoctor(e.target.value)}
-              disabled={loading.doctors}
+              disabled={adminLoading.appointments}
             >
               <option value="">Select a Doctor</option>
               {doctors.map(doctor => (
@@ -361,11 +160,11 @@ const AdminSearchData = () => {
             </select>
             <button 
               className="search-btn" 
-              onClick={searchDoctorEarnings}
-              disabled={loading.doctorEarnings}
+              onClick={validateDoctorSearch}
+              disabled={adminLoading.appointments}
             >
               <i className="fas fa-search"></i> 
-              {loading.doctorEarnings ? ' Searching...' : ' Search'}
+              {adminLoading.appointments ? ' Loading...' : ' Search'}
             </button>
           </div>
           
@@ -390,7 +189,7 @@ const AdminSearchData = () => {
                 </tr>
               </thead>
               <tbody>
-                {loading.doctorEarnings ? (
+                {adminLoading.appointments ? (
                   <tr>
                     <td colSpan="4" className="loading">Loading doctor earnings...</td>
                   </tr>
@@ -420,7 +219,7 @@ const AdminSearchData = () => {
             <select 
               value={selectedSpecialization}
               onChange={(e) => setSelectedSpecialization(e.target.value)}
-              disabled={loading.specializations}
+              disabled={adminLoading.appointments}
             >
               <option value="">Select a Specialization</option>
               {specializations.map(spec => (
@@ -431,11 +230,11 @@ const AdminSearchData = () => {
             </select>
             <button 
               className="search-btn" 
-              onClick={searchSpecializationEarnings}
-              disabled={loading.specializationEarnings}
+              onClick={validateSpecializationSearch}
+              disabled={adminLoading.appointments}
             >
               <i className="fas fa-search"></i> 
-              {loading.specializationEarnings ? ' Searching...' : ' Search'}
+              {adminLoading.appointments ? ' Loading...' : ' Search'}
             </button>
           </div>
 
@@ -460,7 +259,7 @@ const AdminSearchData = () => {
                 </tr>
               </thead>
               <tbody>
-                {loading.specializationEarnings ? (
+                {adminLoading.appointments ? (
                   <tr>
                     <td colSpan="4" className="loading">Loading specialization earnings...</td>
                   </tr>
@@ -501,11 +300,11 @@ const AdminSearchData = () => {
             />
             <button 
               className="search-btn" 
-              onClick={searchByDateRange}
-              disabled={loading.dateRange}
+              onClick={validateDateRange}
+              disabled={adminLoading.appointments}
             >
               <i className="fas fa-search"></i> 
-              {loading.dateRange ? ' Searching...' : ' Search'}
+              {adminLoading.appointments ? ' Loading...' : ' Search'}
             </button>
           </div>
 
@@ -534,7 +333,7 @@ const AdminSearchData = () => {
                 </tr>
               </thead>
               <tbody>
-                {loading.dateRange ? (
+                {adminLoading.appointments ? (
                   <tr>
                     <td colSpan="8" className="loading">Loading appointments...</td>
                   </tr>

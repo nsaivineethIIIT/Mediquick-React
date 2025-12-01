@@ -1,27 +1,45 @@
 import React, { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import '../../assets/css/AdminDashboard.css';
-import Footer from '../common/Footer';
+// import Footer from '../common/Footer';
 import { Link, useNavigate } from 'react-router-dom';
-
+import { useAdmin } from '../../context/AdminContext';
+import { 
+  fetchAdminAppointments, 
+  fetchAdminFinance, 
+  fetchAdminEarnings, 
+  fetchAdminRevenueSummary,
+  selectAdminAppointments,
+  selectAdminFinance,
+  selectAdminEarnings,
+  selectAdminRevenueSummary,
+  selectAdminLoading,
+  selectAdminErrors
+} from '../../store/slices/adminSlice';
 const AdminDashboard = () => {
+  const { admin } = useAdmin();
+  const dispatch = useDispatch();
+  
+  // Redux state for appointment/financial sections
+  const appointments = useSelector(selectAdminAppointments);
+  const financeData = useSelector(selectAdminFinance);
+  const earningsData = useSelector(selectAdminEarnings);
+  const revenueSummary = useSelector(selectAdminRevenueSummary);
+  const adminLoading = useSelector(selectAdminLoading);
+  const adminErrors = useSelector(selectAdminErrors);
+  
+  // Local state for other sections
   const [activeSection, setActiveSection] = useState('users');
   const [allUsers, setAllUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [userTypeFilter, setUserTypeFilter] = useState('all');
   const [filterValue, setFilterValue] = useState('');
   const [signins, setSignins] = useState([]);
-  const [appointments, setAppointments] = useState([]);
-  const [financeData, setFinanceData] = useState([]);
-  const [earningsData, setEarningsData] = useState({});
-  const [revenueSummary, setRevenueSummary] = useState({});
   const [medicineOrders, setMedicineOrders] = useState([]);
   const [medicineFinance, setMedicineFinance] = useState({ rows: [], totals: { totalAmount: 0, totalCommission: 0 } }); 
   const [loading, setLoading] = useState({
     users: true,
     signins: true,
-    appointments: true,
-    finance: true,
-    earnings: true,
     medicineOrders: true,
     medicineFinance: true, 
   });
@@ -41,14 +59,19 @@ const AdminDashboard = () => {
     }
   };
 
+  // Fetch Redux data on component mount
+  useEffect(() => {
+    dispatch(fetchAdminAppointments());
+    dispatch(fetchAdminFinance());
+    dispatch(fetchAdminEarnings());
+    dispatch(fetchAdminRevenueSummary());
+  }, [dispatch]);
+
   // Fetch all data on component mount
   useEffect(() => {
+    // Fetch local state data
     fetchUsers();
     fetchSignins();
-    fetchAppointments();
-    fetchFinanceData();
-    fetchEarningsData();
-    fetchRevenueSummary();
     fetchMedicineFinanceData();
     fetchMedicineOrders(); 
   }, []);
@@ -58,20 +81,7 @@ const AdminDashboard = () => {
     filterUsers();
   }, [allUsers, userTypeFilter, filterValue]);
 
-  // Handle scroll for header
-  useEffect(() => {
-    const handleScroll = () => {
-      const header = document.querySelector('header');
-      if (window.scrollY > 30) {
-        header.classList.add('header-active');
-      } else {
-        header.classList.remove('header-active');
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  // Header scroll handler removed since header is not present
 
   // API Functions with better error handling
   const fetchUsers = async () => {
@@ -133,118 +143,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const fetchAppointments = async () => {
-    try {
-      setLoading(prev => ({ ...prev, appointments: true }));
-      setError('');
-      
-      const response = await fetch(`${BASE_URL}/admin/api/appointments`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          return;
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await parseResponse(response);
-      setAppointments(data);
-    } catch (error) {
-      console.error('Error fetching appointments:', error);
-      setError(`Failed to load appointments: ${error.message}`);
-    } finally {
-      setLoading(prev => ({ ...prev, appointments: false }));
-    }
-  };
-
-  const fetchFinanceData = async () => {
-    try {
-      setLoading(prev => ({ ...prev, finance: true }));
-      setError('');
-      
-      const response = await fetch(`${BASE_URL}/admin/api/finance`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          return;
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await parseResponse(response);
-      setFinanceData(data);
-    } catch (error) {
-      console.error('Error fetching finance data:', error);
-      setError(`Failed to load finance data: ${error.message}`);
-    } finally {
-      setLoading(prev => ({ ...prev, finance: false }));
-    }
-  };
-
-  const fetchEarningsData = async () => {
-    try {
-      setLoading(prev => ({ ...prev, earnings: true }));
-      setError('');
-      
-      const response = await fetch(`${BASE_URL}/admin/api/earnings`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          return;
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await parseResponse(response);
-      setEarningsData(data);
-    } catch (error) {
-      console.error('Error fetching earnings data:', error);
-      setError(`Failed to load earnings data: ${error.message}`);
-    } finally {
-      setLoading(prev => ({ ...prev, earnings: false }));
-    }
-  };
-
-  const fetchRevenueSummary = async () => {
-    try {
-      setError('');
-      
-      const response = await fetch(`${BASE_URL}/admin/api/revenue-summary`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          return;
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await parseResponse(response);
-      setRevenueSummary(data);
-    } catch (error) {
-      console.error('Error fetching revenue summary:', error);
-      setError(`Failed to load revenue summary: ${error.message}`);
-    }
-  };
+  // Redux now handles fetching appointments, finance, earnings, and revenue summary
 
   // Fetch Medicine Orders
   const fetchMedicineOrders = async () => {
@@ -266,11 +165,14 @@ const AdminDashboard = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await parseResponse(response);
-      setMedicineOrders(data);
+      const responseData = await parseResponse(response);
+      // Extract the data array from the response
+      const ordersData = responseData.data || [];
+      setMedicineOrders(Array.isArray(ordersData) ? ordersData : []);
     } catch (error) {
       console.error('Error fetching medicine orders:', error);
       setError(`Failed to load medicine orders: ${error.message}`);
+      setMedicineOrders([]); // Reset to empty array on error
     } finally {
       setLoading(prev => ({ ...prev, medicineOrders: false }));
     }
@@ -292,9 +194,12 @@ const AdminDashboard = () => {
       }
 
       const data = await parseResponse(response);
-      setMedicineFinance(data);
+      // Ensure proper structure for medicine finance data
+      const financeData = data || { rows: [], totals: { totalAmount: 0, totalCommission: 0 } };
+      setMedicineFinance(financeData);
     } catch (error) {
       console.error('Error fetching medicine finance data:', error);
+      setMedicineFinance({ rows: [], totals: { totalAmount: 0, totalCommission: 0 } }); // Reset on error
     } finally {
       setLoading(prev => ({ ...prev, medicineFinance: false }));
     }
@@ -456,38 +361,17 @@ const AdminDashboard = () => {
 
   return (
     <div className="admin-dashboard">
-      {/* Custom Header from EJS file */}
-      <header>
-        <a href="/" className="logo"><span>M</span>edi<span>Q</span>uick</a>
-        <nav className={`navbar ${isNavOpen ? 'nav-toggle' : ''}`}>
-          <ul>
-            <li><a href="/">Home</a></li>
-            <li><a href="/about">About Us</a></li>
-            <li><a href="/faqs">FAQs</a></li>
-            <li><a href="/blogs">Blog</a></li>
-            <li><a href="/contact">Contact Us</a></li>
-            <li><a href="/logout">LogOut</a></li>
-            <li><a href="#appointments" onClick={() => scrollToSection('appointments')}>Appointments</a></li>
-            <li><a href="#signins" onClick={() => scrollToSection('signins')}>Recent SignIns</a></li>
-            <li><a href="#finance" onClick={() => scrollToSection('finance')}>Finance</a></li>
-            <li><a href="#medicine-finance" onClick={() => scrollToSection('medicine-finance')}>Medicine Finance</a></li>
-            <li><a href="#users" onClick={() => scrollToSection('users')}>Manage Users</a></li>
-            <Link to="/admin/search-data">Search data</Link>
-            <li>
-              <Link to="/admin/profile" >Profile</Link>
-            </li>
-          </ul>
-        </nav>
-        <div 
-          className={`fas ${isNavOpen ? 'fa-times' : 'fa-bars'}`} 
-          onClick={toggleMobileNav}
-        ></div>
-      </header>
+      {/* Header removed to avoid duplicate header */}
 
       <div className="dashboard-container">
         {/* Navigation Sidebar */}
         <nav className="dashboard-nav">
           <ul>
+            <li>
+              <Link to="/" className="nav-link home-link">
+                🏠 Home
+              </Link>
+            </li>
             <li>
               <button 
                 className={activeSection === 'users' ? 'active' : ''}
@@ -709,7 +593,7 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {loading.appointments ? (
+                    {adminLoading.appointments ? (
                       <tr>
                         <td colSpan="8" className="loading">Loading appointments...</td>
                       </tr>
@@ -776,7 +660,7 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {loading.finance ? (
+                    {adminLoading.finance ? (
                       <tr>
                         <td colSpan="7" className="loading">Loading finance data...</td>
                       </tr>
@@ -894,12 +778,12 @@ const AdminDashboard = () => {
                       <tr>
                         <td colSpan="7" className="loading">Loading orders...</td>
                       </tr>
-                    ) : medicineOrders.length === 0 ? (
+                    ) : (!Array.isArray(medicineOrders) || medicineOrders.length === 0) ? (
                       <tr>
                         <td colSpan="7">No medicine orders found</td>
                       </tr>
                     ) : (
-                      medicineOrders.map(order => (
+                      (Array.isArray(medicineOrders) ? medicineOrders : []).map(order => (
                         <tr key={order._id}>
                           <td>{order.orderId}</td>
                           <td>{order.patientName || 'Unknown Patient'}</td>
@@ -939,7 +823,7 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {loading.earnings ? (
+                    {adminLoading.earnings ? (
                       <tr>
                         <td colSpan="4" className="loading">Loading daily earnings data...</td>
                       </tr>
@@ -972,7 +856,7 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {loading.earnings ? (
+                    {adminLoading.earnings ? (
                       <tr>
                         <td colSpan="4" className="loading">Loading monthly earnings data...</td>
                       </tr>
@@ -1005,7 +889,7 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {loading.earnings ? (
+                    {adminLoading.earnings ? (
                       <tr>
                         <td colSpan="4" className="loading">Loading yearly earnings data...</td>
                       </tr>
@@ -1039,9 +923,9 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {loading.earnings ? (
+                    {adminLoading.earnings ? (
                       <tr>
-                        <td colSpan="5" className="loading">Loading specialization data...</td>
+                        <td colSpan="4" className="loading">Loading specialization data...</td>
                       </tr>
                     ) : !revenueSummary.bySpecialization || revenueSummary.bySpecialization.length === 0 ? (
                       <tr>
@@ -1089,7 +973,7 @@ const AdminDashboard = () => {
         </main>
       </div>
 
-      <Footer />
+      {/* Footer removed to avoid duplicate footer */}
     </div>
   );
 };
