@@ -1,148 +1,48 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  fetchPatientPrescriptions,
+  downloadPrescription,
+  selectPatientPrescriptions,
+  selectPrescriptionLoading,
+  selectPrescriptionErrors
+} from '../../store/slices/prescriptionSlice';
 import '../../assets/css/PatientPrescriptions.css';
 
 const PatientPrescriptions = () => {
-    const [prescriptions, setPrescriptions] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const dispatch = useDispatch();
     const navigate = useNavigate();
+    
+    // Redux state
+    const prescriptions = useSelector(selectPatientPrescriptions);
+    const loading = useSelector(selectPrescriptionLoading);
+    const errors = useSelector(selectPrescriptionErrors);
 
     useEffect(() => {
-        fetchPrescriptions();
-    }, []);
+        dispatch(fetchPatientPrescriptions());
+    }, [dispatch]);
 
-    const fetchPrescriptions = async () => {
-        try {
-            setLoading(true);
-            setError(null);
-            
-            console.log('Fetching prescriptions...');
-            
-            const response = await fetch('http://localhost:3002/prescription/patient/prescriptions', {
-                credentials: 'include', // Important for session cookies
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                }
-            });
-            
-            console.log('Response status:', response.status);
-            console.log('Response headers:', response.headers);
-            
-            // Check if response is HTML (error page)
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('text/html')) {
-                const text = await response.text();
-                console.log('HTML response received:', text.substring(0, 200));
-                
-                if (response.status === 401) {
-                    throw new Error('Please log in to view prescriptions');
-                } else if (response.status === 404) {
-                    throw new Error('Prescriptions endpoint not found');
-                } else {
-                    throw new Error('Server returned HTML instead of JSON. Please check the endpoint.');
-                }
-            }
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const result = await response.json();
-            console.log('API Response:', result);
-            
-            if (result.success && result.prescriptions) {
-                setPrescriptions(result.prescriptions);
-            } else if (result.prescriptions) {
-                // Handle case where prescriptions might be directly in response
-                setPrescriptions(result.prescriptions);
-            } else {
-                throw new Error('Invalid response format from server');
-            }
-            
-        } catch (error) {
-            console.error('Error fetching prescriptions:', error);
-            
-            if (error.message.includes('log in')) {
-                setError('Please log in to view your prescriptions');
-                // Redirect to login after 2 seconds
-                setTimeout(() => {
-                    navigate('/patient/form');
-                }, 2000);
-            } else {
-                setError(error.message || 'Failed to load prescriptions. Please try again.');
-            }
-        } finally {
-            setLoading(false);
+    // Handle login redirect
+    useEffect(() => {
+        if (errors.patientPrescriptions && errors.patientPrescriptions.includes('log in')) {
+            setTimeout(() => {
+                navigate('/patient/form');
+            }, 2000);
         }
-    };
+    }, [errors.patientPrescriptions, navigate]);
 
     const handleDownload = async (prescriptionId) => {
-        try {
-            console.log('Downloading prescription:', prescriptionId);
-            
-            const response = await fetch(`http://localhost:3002/patient/prescriptions/download/${prescriptionId}`, {
-                credentials: 'include'
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to download prescription');
-            }
-            
-            const blob = await response.blob();
-            
-            // Check if it's actually a PDF
-            if (blob.type !== 'application/pdf') {
-                const text = await blob.text();
-                if (text.includes('<!doctype') || text.includes('<!DOCTYPE')) {
-                    throw new Error('Server returned HTML instead of PDF');
-                }
-            }
-            
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `prescription-${prescriptionId}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-            
-        } catch (error) {
-            console.error('Download error:', error);
+        const result = await dispatch(downloadPrescription({ prescriptionId, userType: 'patient' }));
+        
+        if (result.type === 'prescription/downloadPrescription/rejected') {
             alert('Failed to download prescription. Please try again.');
         }
     };
 
-    // Debug function to check available endpoints
-    const debugEndpoints = async () => {
-        try {
-            const endpoints = [
-                '/prescription/patient/prescriptions',
-                '/patient/prescriptions',
-                '/api/patient/prescriptions'
-            ];
-            
-            for (const endpoint of endpoints) {
-                try {
-                    const response = await fetch(endpoint, { credentials: 'include' });
-                    console.log(`Endpoint ${endpoint}:`, response.status, response.headers.get('content-type'));
-                } catch (err) {
-                    console.log(`Endpoint ${endpoint}: Error -`, err.message);
-                }
-            }
-        } catch (err) {
-            console.log('Debug error:', err);
-        }
-    };
 
-    // Call debug on component mount to see what endpoints are available
-    useEffect(() => {
-        debugEndpoints();
-    }, []);
 
-    if (loading) {
+    if (loading.patientPrescriptions) {
         return (
             <div className="prescriptions-container">
                 <div className="loading">
@@ -153,15 +53,15 @@ const PatientPrescriptions = () => {
         );
     }
 
-    if (error) {
+    if (errors.patientPrescriptions) {
         return (
             <div className="prescriptions-container">
                 <div className="error-message">
                     <i className="fas fa-exclamation-triangle"></i>
                     <h3>Error Loading Prescriptions</h3>
-                    <p>{error}</p>
+                    <p>{errors.patientPrescriptions}</p>
                     <div style={{ marginTop: '15px', display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                        <button className="retry-btn" onClick={fetchPrescriptions}>
+                        <button className="retry-btn" onClick={() => dispatch(fetchPatientPrescriptions())}>
                             <i className="fas fa-redo"></i> Try Again
                         </button>
                         <button 

@@ -1,12 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  fetchDoctorAppointmentsForPrescription,
+  fetchDoctorPrescriptions,
+  createPrescription,
+  selectAppointmentsWithoutPrescriptions,
+  selectPrescriptionLoading,
+  selectPrescriptionErrors,
+  selectCreateSuccess,
+  clearCreateSuccess
+} from '../../store/slices/prescriptionSlice';
 import '../../assets/css/DoctorDashboard.css';
 
 const DoctorGeneratePrescriptions = () => {
-  const [appointments, setAppointments] = useState([]);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  
+  // Redux state
+  const appointments = useSelector(selectAppointmentsWithoutPrescriptions);
+  const loading = useSelector(selectPrescriptionLoading);
+  const errors = useSelector(selectPrescriptionErrors);
+  const createSuccess = useSelector(selectCreateSuccess);
+  
+  // Local state
   const [selectedAppointment, setSelectedAppointment] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   
   // Form state
   const [formData, setFormData] = useState({
@@ -32,41 +50,25 @@ const DoctorGeneratePrescriptions = () => {
   };
 
   useEffect(() => {
-    fetchAppointments();
-  }, []);
+    dispatch(fetchDoctorAppointmentsForPrescription());
+    dispatch(fetchDoctorPrescriptions());
+  }, [dispatch]);
 
-  const fetchAppointments = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      
-      const response = await fetch('http://localhost:3002/doctor/api/appointments', fetchConfig);
-      
-      if (!response.ok) {
-        if (response.status === 401) {
-          window.location.href = '/doctor/form?error=login_required';
-          return;
-        }
-        throw new Error('Failed to fetch appointments');
-      }
-      
-      const data = await response.json();
-      
-      // Filter completed appointments from both upcoming and previous
-      const completedAppointments = [
-        ...(data.upcoming || []).filter(appt => appt.status === 'completed'),
-        ...(data.previous || []).filter(appt => appt.status === 'completed')
-      ];
-      
-      setAppointments(completedAppointments);
-      
-    } catch (err) {
-      console.error('Error fetching appointments:', err);
-      setError('Failed to load appointments. Please try again.');
-    } finally {
-      setLoading(false);
+  // Handle login redirect
+  useEffect(() => {
+    if (errors.completedAppointments === 'login_required') {
+      window.location.href = '/doctor/form?error=login_required';
     }
-  };
+  }, [errors.completedAppointments]);
+
+  // Handle successful prescription creation
+  useEffect(() => {
+    if (createSuccess) {
+      alert('Prescription created successfully!');
+      dispatch(clearCreateSuccess());
+      navigate('/doctor/prescriptions');
+    }
+  }, [createSuccess, dispatch, navigate]);
 
   const selectAppointment = (appointment) => {
     setSelectedAppointment(appointment);
@@ -119,33 +121,30 @@ const DoctorGeneratePrescriptions = () => {
     }
   };
 
- // In DoctorGeneratePrescriptions.jsx, update the handleSubmit function:
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!selectedAppointment) {
+      alert('Please select an appointment first');
+      return;
+    }
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  
-  if (!selectedAppointment) {
-    alert('Please select an appointment first');
-    return;
-  }
+    // Validate required fields
+    if (!formData.age || !formData.gender || !formData.weight || !formData.symptoms) {
+      alert('Please fill all required fields');
+      return;
+    }
 
-  // Validate required fields
-  if (!formData.age || !formData.gender || !formData.weight || !formData.symptoms) {
-    alert('Please fill all required fields');
-    return;
-  }
+    // Validate medicines
+    const hasEmptyMedicine = formData.medicines.some(med => 
+      !med.medicineName || !med.dosage || !med.frequency || !med.duration
+    );
+    
+    if (hasEmptyMedicine) {
+      alert('Please fill all required medicine fields');
+      return;
+    }
 
-  // Validate medicines
-  const hasEmptyMedicine = formData.medicines.some(med => 
-    !med.medicineName || !med.dosage || !med.frequency || !med.duration
-  );
-  
-  if (hasEmptyMedicine) {
-    alert('Please fill all required medicine fields');
-    return;
-  }
-
-  try {
     const prescriptionData = {
       appointmentId: formData.appointmentId,
       age: parseInt(formData.age),
@@ -156,33 +155,12 @@ const handleSubmit = async (e) => {
       additionalNotes: formData.additionalNotes
     };
 
-    console.log('Sending prescription data:', prescriptionData);
-
-    // Try different endpoint variations
-    const response = await fetch('http://localhost:3002/prescription/doctor/prescriptions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(prescriptionData),
-      credentials: 'include'
-    });
-
-    // Check if response is HTML (error page)
-    const contentType = response.headers.get('content-type');
-    let result;
+    const result = await dispatch(createPrescription(prescriptionData));
     
-    if (contentType && contentType.includes('application/json')) {
-      result = await response.json();
+    if (result.type === 'prescription/createPrescription/rejected') {
+      alert(result.payload || 'Failed to create prescription');
     } else {
-      const text = await response.text();
-      console.error('Server returned HTML instead of JSON:', text.substring(0, 500));
-      throw new Error('Server error - received HTML response');
-    }
-
-    if (response.ok) {
-      alert('Prescription created successfully!');
-      // Reset form
+      // Reset form on success
       setFormData({
         appointmentId: '',
         age: '',
@@ -201,17 +179,8 @@ const handleSubmit = async (e) => {
         ]
       });
       setSelectedAppointment(null);
-      
-      // Redirect to prescriptions page
-      window.location.href = '/doctor/prescriptions';
-    } else {
-      alert(result.error || 'Failed to create prescription');
     }
-  } catch (err) {
-    console.error('Error creating prescription:', err);
-    alert('Failed to create prescription. Please check the console for details.');
-  }
-};
+  };
 
   return (
     <div className="doctor-dashboard">
@@ -240,19 +209,19 @@ const handleSubmit = async (e) => {
               Select Completed Appointment
             </h3>
             
-            {loading && (
+            {loading.completedAppointments && (
               <div className="loading">
                 <div className="loading-spinner"></div>
                 <p>Loading appointments...</p>
               </div>
             )}
 
-            {error && (
+            {errors.completedAppointments && (
               <div className="error-message">
                 <i className="fas fa-exclamation-triangle" style={{ fontSize: '2rem', marginBottom: '1rem' }}></i>
-                <p>{error}</p>
+                <p>{errors.completedAppointments}</p>
                 <button 
-                  onClick={fetchAppointments}
+                  onClick={() => dispatch(fetchDoctorAppointmentsForPrescription())}
                   style={{ 
                     marginTop: '1rem', 
                     padding: '0.5rem 1rem', 
@@ -268,14 +237,14 @@ const handleSubmit = async (e) => {
               </div>
             )}
 
-            {!loading && !error && appointments.length === 0 && (
+            {!loading.completedAppointments && !errors.completedAppointments && appointments.length === 0 && (
               <div className="no-appointments">
                 <i className="fas fa-calendar-times" style={{ fontSize: '4rem', marginBottom: '1rem' }}></i>
                 <p>No completed appointments available for prescription generation.</p>
               </div>
             )}
 
-            {!loading && !error && appointments.length > 0 && (
+            {!loading.completedAppointments && !errors.completedAppointments && appointments.length > 0 && (
               <div>
                 {appointments.map(appointment => (
                   <div 

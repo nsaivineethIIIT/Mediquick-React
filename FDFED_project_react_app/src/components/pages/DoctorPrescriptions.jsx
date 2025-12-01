@@ -1,16 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  fetchDoctorPrescriptions,
+  downloadPrescription,
+  selectDoctorPrescriptions,
+  selectPrescriptionLoading,
+  selectPrescriptionErrors
+} from '../../store/slices/prescriptionSlice';
 import '../../assets/css/DoctorDashboard.css';
 import '../../assets/css/DoctorPrescriptions.css';
 
 const DoctorPrescriptions = () => {
-  const [prescriptions, setPrescriptions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const fetchConfig = {
-    credentials: 'include'
-  };
+  const dispatch = useDispatch();
+  
+  // Redux state
+  const prescriptions = useSelector(selectDoctorPrescriptions);
+  const loading = useSelector(selectPrescriptionLoading);
+  const errors = useSelector(selectPrescriptionErrors);
 
   // Move formatDate function here so it's accessible to all components
   const formatDate = (dateString) => {
@@ -22,63 +29,18 @@ const DoctorPrescriptions = () => {
   };
 
   useEffect(() => {
-    fetchPrescriptions();
-  }, []);
-
-  const fetchPrescriptions = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await fetch('http://localhost:3002/prescription/doctor/prescriptions', fetchConfig);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch prescriptions');
-      }
-      
-      const result = await response.json();
-      
-      if (result.success && result.prescriptions) {
-        setPrescriptions(result.prescriptions);
-      } else {
-        throw new Error('Invalid response format');
-      }
-      
-    } catch (error) {
-      console.error('Error fetching prescriptions:', error);
-      setError('Failed to load prescriptions. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+    dispatch(fetchDoctorPrescriptions());
+  }, [dispatch]);
 
   const handleDownload = async (prescriptionId) => {
-    try {
-      const response = await fetch(`http://localhost:3002/doctor/prescriptions/download/${prescriptionId}`, {
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = `prescription-${prescriptionId}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else {
-        throw new Error('Failed to download prescription');
-      }
-    } catch (error) {
-      console.error('Error downloading prescription:', error);
+    const result = await dispatch(downloadPrescription({ prescriptionId, userType: 'doctor' }));
+    
+    if (result.type === 'prescription/downloadPrescription/rejected') {
       alert('Failed to download prescription. Please try again.');
     }
   };
 
-  if (loading) {
+  if (loading.doctorPrescriptions) {
     return (
       <div className="doctor-prescriptions">
         <Header />
@@ -93,7 +55,7 @@ const DoctorPrescriptions = () => {
     );
   }
 
-  if (error) {
+  if (errors.doctorPrescriptions) {
     return (
       <div className="doctor-prescriptions">
         <Header />
@@ -101,8 +63,8 @@ const DoctorPrescriptions = () => {
           <div className="error-message">
             <i className="fas fa-exclamation-triangle"></i>
             <h3>Error Loading Prescriptions</h3>
-            <p>{error}</p>
-            <button className="retry-btn" onClick={fetchPrescriptions}>
+            <p>{errors.doctorPrescriptions}</p>
+            <button className="retry-btn" onClick={() => dispatch(fetchDoctorPrescriptions())}>
               <i className="fas fa-redo"></i> Try Again
             </button>
           </div>
