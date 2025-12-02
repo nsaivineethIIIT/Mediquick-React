@@ -2,7 +2,7 @@
   --primary-color: #0188df;
   --secondary-color: #0188df;
   --accent-color: #01356d;
-  --text-color: #000000f4;
+  --text-color: #060000;
   --light-bg: #f5f9ed;
   --white: #ffffff;
   --shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
@@ -33,7 +33,7 @@
 .blog-page-container .blog-heading {
   width: 90%;
   max-width: 1200px;
-  margin: 0 auto 40px;
+  margin: 0 auto 60px;
   border-radius: var(--border-radius);
   box-shadow: var(--shadow);
   background: var(--white);
@@ -279,16 +279,18 @@
   background: #f4c91e;
   transform: translateY(-1px);
 }
-
-#cross {
-  position: fixed;
-  top: 10px;
-  left: 15px;
-  font-size: 2rem;
-  border-radius: 50%;
-  z-index: 1000;
-  color: var(--primary-color);
-  transition: var(--transition);
+ 
+.blog-page-container #cross {
+  /* match PostBlog layout: sit under header with consistent sizing */
+  position: fixed !important;
+  top: 96px !important; /* same offset as PostBlog */
+  left: 20px !important;
+  font-size: 35px !important;
+  padding: 20px 60px !important; /* keep same shape used on PostBlog */
+  border-radius: 50% !important;
+  z-index: 1000 !important;
+  color: var(--primary-color) !important;
+  transition: var(--transition) !important;
 }
 
 .blog-page-container #cross:hover {
@@ -372,6 +374,15 @@
 
   .blog-page-container .our-blog {
     width: 90%;
+  }
+
+  /* mobile position for cross fallback on Blog page only */
+  .blog-page-container #cross {
+    position: fixed !important;
+    top: 78px !important; /* match PostBlog mobile */
+    left: 20px !important;
+    font-size: 28px !important;
+    padding: 16px 36px !important;
   }
 
   .blog-page-container .blog-section {
