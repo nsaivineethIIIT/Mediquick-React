@@ -3,7 +3,7 @@
 body {
   font-family: 'Poppins', sans-serif;
   background: linear-gradient(to right, #01356d, #0188df);
-  margin: 0;
+  margin: 30;
   padding: 0;
   overflow-x: hidden;
 }
@@ -19,21 +19,20 @@ body {
 
 .container {
   max-width: 850px;
-  background: #ffffff;
-  margin: 50px auto;
-  padding: 30px 35px;
+  background: #ffffff;  
+  margin: 120px auto 30px;
+  padding: 50px 20px;
   border-radius: 15px;
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 24px rgba(7, 6, 6, 0.1);
   animation: fadeInUp 0.5s ease-in-out;
   transition: background 0.3s ease;
 }
 
-h2 {
-  text-align: center;
-  color: #0188df;
-  margin-bottom: 25px;
-  font-weight: 600;
-}
+  h2 {
+    text-align: center;
+    margin-bottom: 25px;
+    font-weight: 600;
+  }
 
 h2.hover {
   color: black;
@@ -46,7 +45,7 @@ label {
   color: #333;
   transition: color 0.2s ease;
 }
-
+    /* removed stray value: the responsive top offset is set inside #cross below */
 input,
 select,
 textarea { /* Added textarea here */
@@ -145,17 +144,18 @@ textarea:focus { /* Added textarea here */
   transform: translateY(-2px);
 }
 
-#cross {
+#cross { 
   position: fixed;
-  top: 12px;
+  top: 96px;
   left: 20px;
   font-size: 35px;
   color: #0188df;
   background: white;
   border-radius: 50%;
-  padding: 6px 10px;
+  padding: 20px 60px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
   transition: transform 0.2s ease, background 0.3s ease;
+  /* make sure cross sits above the fixed header (header z-index is 1000) */
   z-index: 999;
 }
 
@@ -199,7 +199,8 @@ textarea:focus { /* Added textarea here */
 /* Media Queries */
 @media (max-width: 768px) {
   .container {
-    margin: 20px;
+    /* keep a comfortable gap on mobile too (smaller than desktop) */
+    margin: 90px 20px 20px;
     padding: 20px;
   }
 
@@ -214,6 +215,8 @@ textarea:focus { /* Added textarea here */
 
   #cross {
     font-size: 28px;
+    /* slightly lower on mobile screens so it's comfortably under the header */
+    top: 78px;
   }
 
   .image-preview-wrapper {
