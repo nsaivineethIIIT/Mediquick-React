@@ -59,6 +59,35 @@ const PostBlog = () => {
 
   }, [theme]); // Re-run effect when theme changes to update CSS class
 
+  // restored: no runtime cross repositioning here — cross will use CSS fallback
+
+  // keep the close 'cross' button positioned beneath the site header
+  // We compute header bottom on load/resize/scroll and set an inline top on #cross
+  useEffect(() => {
+    const cross = () => document.getElementById('cross');
+    const header = () => document.querySelector('header');
+
+    function updateCrossPosition() {
+      const c = cross();
+      const h = header();
+      if (!c || !h) return;
+      // header.getBoundingClientRect().bottom is distance from viewport top to header bottom
+      const headerBottom = Math.ceil(h.getBoundingClientRect().bottom);
+      const gap = 10; // px gap below header
+      // place cross below header bottom + gap
+      c.style.top = `${headerBottom + gap}px`;
+    }
+
+    updateCrossPosition();
+    window.addEventListener('resize', updateCrossPosition);
+    window.addEventListener('scroll', updateCrossPosition, { passive: true });
+    // clean up
+    return () => {
+      window.removeEventListener('resize', updateCrossPosition);
+      window.removeEventListener('scroll', updateCrossPosition);
+    };
+  }, []);
+
   // Handle file input change and image preview
   const previewImages = (e) => {
     const files = Array.from(e.target.files);
@@ -152,7 +181,6 @@ const PostBlog = () => {
       >
         <i className="fa-solid fa-xmark"></i>
       </div>
-
       <div className="container">
         <h2>Post a Blog</h2>
 
