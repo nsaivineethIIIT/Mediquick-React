@@ -62,7 +62,8 @@ const SingleBlog = () => {
 
   return (
     <>
-      <header>
+      <div className="single-blog-wrapper">
+        <header>
         <h1 className="animate__animated animate__fadeInDown">{blog.title}</h1>
         {blog.theme && (
           <p className="theme animate__animated animate__fadeInUp">Theme: {blog.theme}</p>
@@ -112,7 +113,8 @@ const SingleBlog = () => {
         <Link to="/blog" className="back-button animate__animated animate__fadeInUp">
           <i className="fas fa-arrow-left"></i> Back to Blog
         </Link>
-      </main>
+        </main>
+      </div>
     </>
   );
 };
