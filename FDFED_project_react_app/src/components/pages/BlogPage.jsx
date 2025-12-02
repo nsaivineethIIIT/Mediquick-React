@@ -100,6 +100,34 @@ const BlogPage = () => {
     fetchBlogs();
   }, [currentFilter, currentPage]); 
 
+  /* cross positioning not applied here (restoring original behavior) */
+
+  // Position the cross button below the visible site header so it never overlaps.
+  // Mirrors the fix used in PostBlog.jsx — computes header bottom and sets inline top
+  useEffect(() => {
+    const getCross = () => document.getElementById('cross');
+    const getHeader = () => document.querySelector('header');
+
+    function updateCross() {
+      const c = getCross();
+      const h = getHeader();
+      if (!c || !h) return;
+      const headerBottom = Math.ceil(h.getBoundingClientRect().bottom);
+      const gap = 10; // pixels of spacing under header
+      c.style.top = `${headerBottom + gap}px`;
+    }
+
+    // call on load
+    updateCross();
+    // keep in sync on resize and scroll (header may change position/height)
+    window.addEventListener('resize', updateCross);
+    window.addEventListener('scroll', updateCross, { passive: true });
+    return () => {
+      window.removeEventListener('resize', updateCross);
+      window.removeEventListener('scroll', updateCross);
+    };
+  }, []);
+
   const createLink = (filter, page) => {
     const params = new URLSearchParams();
     if (filter !== 'all') params.set('filter', filter);
